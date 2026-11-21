@@ -12,6 +12,7 @@ sealed class Settings
 	public bool AlwaysOnTop { get; set; } = true;
 	public List<string> Accounts { get; set; } = new(); // bağlı Steam hesapları (accounts/<ad> klasörleri)
 	public string? Selected { get; set; }                // Ana Sayfa'da ve masaüstünde gösterilen tavuğun hesabı
+	public bool Demo { get; set; }                       // giriş yapmadan deneniyor (örnek tavuk)
 }
 
 sealed class NotifyFlags
@@ -32,7 +33,8 @@ sealed class PetCache
 static class Store
 {
 	static string AppData => Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-	public static string DataDir => Path.Combine(AppData, "KumesCS");
+	// KUMES_DATA: geliştirirken ayrı bir veri klasörüyle denemek için (gerçek hesaplara dokunmadan)
+	public static string DataDir => Environment.GetEnvironmentVariable("KUMES_DATA") is { Length: > 0 } d ? d : Path.Combine(AppData, "KumesCS");
 	public static string ElectronDir => Path.Combine(AppData, "Kumes"); // eski (Electron) sürümün klasörü
 	public static string File(string name) => Path.Combine(DataDir, name);
 

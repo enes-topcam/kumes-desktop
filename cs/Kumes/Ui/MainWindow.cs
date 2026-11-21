@@ -243,7 +243,7 @@ sealed unsafe class MainWindow : WindowBase
 
 		// altta: Steam bağlantısı ve sürüm
 		S.FillRect(20, DH - 108, Side - 40, 1, Line);
-		int n = model.Accounts.Count;
+		int n = model.Accounts.Count(a => a.State != "demo"); // demo hesabı Steam'e bağlı değil
 		bool problem = model.Accounts.Any(a => a.State is "error" or "need-login");
 		uint dot = n == 0 ? Faint : problem ? Error : Positive;
 		string steam = n == 0 ? "Steam bağlı değil" : problem ? "Bağlantı sorunu" : n == 1 ? "Steam Bağlı" : $"{n} Steam hesabı";
@@ -355,6 +355,7 @@ sealed unsafe class MainWindow : WindowBase
 		var ago = a.Pet?.FetchedAt is { } t ? Fmt.Ago(t) : null;
 		return a.State switch
 		{
+			"demo" => ("Örnek tavuk · kendi tavuğun için giriş yap", GInfo, Muted),
 			"fetching" => ("Güncelleniyor…", GRefresh, Muted),
 			"need-login" => ("Tekrar giriş gerekli", GAlert, Error),
 			"cs2" => (ago != null ? $"CS2 açık · son güncelleme {ago}" : "CS2 açık, kapanınca güncellenecek", GInfo, Muted),
@@ -379,6 +380,7 @@ sealed unsafe class MainWindow : WindowBase
 		S.Text(p.Name ?? "Tavuğum", cx + pt + 24, y + pad + 32, D(34, 700), Text);
 		S.Text(Subtitle(a), cx + pt + 26, y + pad + 80, F(15.5f), Muted);
 		if (a.State == "need-login") Pill(cr, y + pad + 4, "Giriş gerekli", Error);
+		else if (a.State == "demo") Pill(cr, y + pad + 4, "Demo", Lavender);
 		else Pill(cr, y + pad + 4, "Takipte", Positive);
 
 		// alttan yukarı: güncelleme satırı, metrik kartları; kalan alan sayaç bloğu
@@ -432,6 +434,7 @@ sealed unsafe class MainWindow : WindowBase
 		Glyph(glyph, cx + 12, sy, 18, gc);
 		S.Text(text, cx + 34, sy - 10, F(14), a.State is "error" or "need-login" ? Error : Muted);
 		if (a.State == "need-login") Button(cr - 150, sy - 21, 150, 42, GSignOut, "Giriş yap", "login");
+		else if (a.State == "demo") Button(cr - 150, sy - 21, 150, 42, "", "Giriş yap", "login", primary: true);
 		else Button(cr - 140, sy - 21, 140, 42, GRefresh, "Güncelle", "refresh:" + a.Id, enabled: !model.Fetching);
 		return h;
 	}
@@ -583,7 +586,7 @@ sealed unsafe class MainWindow : WindowBase
 		}
 
 		y = History(a, y);
-		S.Text($"Steam hesabı: {a.Name}", X0 + 4, y, F(13), Faint);
+		S.Text(a.State == "demo" ? "Örnek tavuk (giriş yapmadan deneniyor)" : $"Steam hesabı: {a.Name}", X0 + 4, y, F(13), Faint);
 		return y + 30;
 	}
 
@@ -628,16 +631,17 @@ sealed unsafe class MainWindow : WindowBase
 			var a = accs[i];
 			Avatar(a, X0 + 16, ry + 13, 38);
 			S.Text(a.Name, X0 + 68, ry + 13, F(14.5f, 600), Text);
-			string st = a.State == "need-login" ? "Tekrar giriş gerekli" : a.Pet is { Found: true } p ? $"Bağlı · {p.Name}" : "Bağlı";
+			string st = a.State == "demo" ? "Giriş yapmadan deneniyor · örnek tavuk" : a.State == "need-login" ? "Tekrar giriş gerekli" : a.Pet is { Found: true } p ? $"Bağlı · {p.Name}" : "Bağlı";
 			S.Text(st, X0 + 68, ry + 34, F(12.5f), a.State == "need-login" ? Error : Muted);
-			if (a.State == "need-login") Button(X0 + CW - 248, ry + 15, 110, 34, "", "Giriş yap", "login");
+			float extra = a.State == "demo" ? 24 : 0; // "Demoyu kapat" daha uzun
+			if (a.State is "need-login" or "demo") Button(X0 + CW - 248 - extra, ry + 15, 110, 34, "", "Giriş yap", "login");
 			else Button(X0 + CW - 248, ry + 15, 110, 34, GOpen, "Profil", "profile:" + a.Id);
-			Button(X0 + CW - 128, ry + 15, 112, 34, GSignOut, "Çıkış yap", "logout:" + a.Id, danger: true);
+			Button(X0 + CW - 128 - extra, ry + 15, 112 + extra, 34, GSignOut, a.State == "demo" ? "Demoyu kapat" : "Çıkış yap", "logout:" + a.Id, danger: true);
 		});
 
 		// veri
 		y = Section(y, "Veri");
-		var last = model.Accounts.Select(a => a.Pet?.FetchedAt).Where(t => t != null).DefaultIfEmpty(null).Max();
+		var last = model.Accounts.Where(a => a.State != "demo").Select(a => a.Pet?.FetchedAt).Where(t => t != null).DefaultIfEmpty(null).Max();
 		(string L, string Dsc, string G, string Id)[] data =
 		[
 			("Şimdi güncelle", model.Fetching ? "Güncelleniyor…" : last is { } t ? $"Son senkronizasyon: {Fmt.When(t)}" : "Henüz güncellenmedi", GRefresh, "refresh"),

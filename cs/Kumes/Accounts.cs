@@ -17,6 +17,32 @@ sealed class DesktopAccount
 		Cache = Kumes.Store.Load<PetCache>(CacheName);
 	}
 
+	// ---- Giriş yapmadan dene: örnek tavuk ----
+	// Steam'e hiç bağlanmaz, diske yazılmaz, bildirim göndermez; gerçek bir hesapla giriş yapılınca kalkar.
+	public const string DemoId = "demo";
+	public bool IsDemo { get; }
+
+	DesktopAccount(PetCache cache)
+	{
+		Id = DemoId;
+		IsDemo = true;
+		Store = new TokenStore(Path.Combine(Dir, "steam-session.bin"));
+		Steam = new SteamService(Store, DeviceName, SteamService.DesktopLoginId);
+		Cache = cache;
+		State = "demo";
+	}
+
+	public static DesktopAccount Demo()
+	{
+		var now = DateTimeOffset.Now;
+		var pet = new PetInfo(true, Name: "Pamuk", PetId: 4, Breed: "Silkie", Kind: "chicken", Level: 2, StageName: "Piliç",
+			FoodExpiresAt: now + TimeSpan.FromHours(19 * 24 + 7), NextUpgradeAt: now + TimeSpan.FromHours(3 * 24 + 14),
+			HatchedAt: now - TimeSpan.FromDays(38));
+		var cache = new PetCache { Pet = pet };
+		PetStats.Add(cache.History, pet);
+		return new DesktopAccount(cache);
+	}
+
 	public string Id { get; }
 	public TokenStore Store { get; }
 	public SteamService Steam { get; }
@@ -30,8 +56,8 @@ sealed class DesktopAccount
 	public byte[]? Avatar;         // düz alfa BGRA
 	public int AvatarW, AvatarH;
 
-	public bool LoggedIn => Store.Exists;
-	public string DisplayName => Cache.Profile?.PersonaName ?? Id;
+	public bool LoggedIn => IsDemo || Store.Exists;
+	public string DisplayName => IsDemo ? "Demo" : Cache.Profile?.PersonaName ?? Id;
 
 	// Hesap adı klasör adı olur (kaldırınca klasör silinir): Steam hesap adları gibi sadece harf, rakam, alt çizgi
 	public static bool ValidId(string id) => id.Length is > 0 and <= 64 && id.All(c => c is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '_');
@@ -42,6 +68,7 @@ sealed class DesktopAccount
 
 	public void Save()
 	{
+		if (IsDemo) return;
 		Directory.CreateDirectory(Dir);
 		Kumes.Store.Save(CacheName, Cache);
 	}

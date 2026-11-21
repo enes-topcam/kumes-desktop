@@ -47,12 +47,15 @@ sealed unsafe class LoginWindow : WindowBase
 	public Action<bool>? Moving; // pencere sürüklenirken true (Windows kendi döngüsünü çalıştırır)
 	public Action<string, string>? PasswordLogin; // kullanıcı adı, şifre
 	public Action? PasswordCancel;
+	public Action? DemoRequested; // "Giriş yapmadan dene": örnek tavukla dene
+	readonly bool canDemo;
 
-	public LoginWindow()
+	public LoginWindow(bool canDemo = false)
 	{
+		this.canDemo = canDemo;
 		s = GetDpiForSystem() / 96f;
 		cw = (int)(380 * s);
-		ch = (int)(540 * s);
+		ch = (int)((canDemo ? 584 : 540) * s);
 		EnsureClass("KumesLogin");
 		var r = new RECT { Right = cw, Bottom = ch };
 		AdjustWindowRectEx(&r, Style, false, 0);
@@ -259,6 +262,9 @@ sealed unsafe class LoginWindow : WindowBase
 		ShowWindow(edit, visible ? SW_SHOW : SW_HIDE);
 	}
 
+	// alttaki durum/hata yazısının dikey ortası (altında "Giriş yapmadan dene" varsa onun üstünde)
+	float MsgY => ch - (canDemo ? 72 : 30) * s;
+
 	void Paint()
 	{
 		if (Hwnd == 0) return;
@@ -283,17 +289,31 @@ sealed unsafe class LoginWindow : WindowBase
 			surf.TextCentered("✓", cw / 2f, 250 * s, g.Font(48 * s, 700, Theme.Sans), Theme.Leaf);
 			surf.TextCentered("Giriş tamam", cw / 2f, 298 * s, g.Font(15 * s, 700, Theme.Serif), Theme.Ink);
 			if (message.Length > 0)
-				surf.TextCentered(message, cw / 2f, ch - 30 * s, g.Font(12.5f * s, 400, Theme.Sans), Theme.Muted);
+				surf.TextCentered(message, cw / 2f, MsgY, g.Font(12.5f * s, 400, Theme.Sans), Theme.Muted);
 		}
 		else
 		{
 			PaintTabs(pad);
 			if (tab == Tab.Qr) PaintQr(pad);
 			else PaintPassword(pad);
+			if (canDemo && step == Step.Form) PaintDemoLink(pad);
 		}
 		surf.End();
 		surf.CopyTo(bits, cw * 4);
 		InvalidateRect(Hwnd, null, false);
+	}
+
+	// En altta: Steam'e bağlanmadan örnek tavukla dene
+	void PaintDemoLink(float pad)
+	{
+		var g = Gfx2D.Shared;
+		surf.FillRect(pad, ch - 50 * s, cw - 2 * pad, Math.Max(1, s), Theme.Outline);
+		var f = g.Font(13.5f * s, 600, Theme.Sans);
+		const string text = "Giriş yapmadan dene";
+		var size = g.Measure(text, f);
+		float x = (cw - size.X) / 2, y = ch - 25 * s - size.Y / 2;
+		surf.Text(text, x, y, f, hover == "demo" ? StrawHot : Theme.Straw);
+		hits.Add(("demo", x - 8 * s, y - 6 * s, size.X + 16 * s, size.Y + 12 * s, true));
 	}
 
 	void PaintTabs(float pad)
@@ -353,7 +373,7 @@ sealed unsafe class LoginWindow : WindowBase
 			sy += 24 * s;
 		}
 		if (message.Length > 0)
-			surf.TextCentered(message, cw / 2f, ch - 30 * s, g.Font(12.5f * s, 400, Theme.Sans), messageBad ? Theme.Danger : Theme.Muted);
+			surf.TextCentered(message, cw / 2f, MsgY, g.Font(12.5f * s, 400, Theme.Sans), messageBad ? Theme.Danger : Theme.Muted);
 	}
 
 	void PaintPassword(float pad)
@@ -375,7 +395,7 @@ sealed unsafe class LoginWindow : WindowBase
 			surf.Text("Şifren yalnızca Steam'e gider, Kümes kaydetmez.", pad + 22 * s, 382 * s, small, Theme.Muted);
 			surf.Text("Steam Guard onayı ya da kodu istenebilir.", pad + 22 * s, 401 * s, small, Theme.Muted);
 			if (pwError != null)
-				surf.TextCentered(pwError, cw / 2f, ch - 30 * s, g.Font(12.5f * s, 400, Theme.Sans), Theme.Danger);
+				surf.TextCentered(pwError, cw / 2f, MsgY, g.Font(12.5f * s, 400, Theme.Sans), Theme.Danger);
 			return;
 		}
 
@@ -450,6 +470,7 @@ sealed unsafe class LoginWindow : WindowBase
 			case "login": Start(); break;
 			case "send": SendCode(); break;
 			case "cancel": CancelGuard(); break;
+			case "demo": DemoRequested?.Invoke(); break;
 			case "use-code": canUseCode = false; Paint(); codeChosen?.TrySetResult(); break;
 			case "field-user": SetFocus(userEdit); break;
 			case "field-pass": SetFocus(passEdit); break;

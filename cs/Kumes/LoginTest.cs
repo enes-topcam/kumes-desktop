@@ -14,9 +14,10 @@ static class LoginTest
 	{
 		var queue = new ConcurrentQueue<Action>();
 		void Post(Action a) => queue.Enqueue(a);
-		var w = new LoginWindow();
+		var w = new LoginWindow(canDemo: true);
 		bool open = true;
 		w.Closed = () => open = false;
+		w.DemoRequested = () => Post(() => w.SetDone("Demo başlıyor…"));
 		w.SetQr("https://s.team/q/1/0000000000000000000");
 		CancellationTokenSource? cts = null;
 		w.PasswordCancel = () => cts?.Cancel();

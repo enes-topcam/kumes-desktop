@@ -183,7 +183,7 @@ sealed class PetBehavior
 			"hungry" => Pick(("walk", 1.5f), ("idle", 1), ("peck", 3), ("sit", 3), ("flap", 0.3f)),
 			// "flap" = kendiliğinden numara (tıklamadaki numaralar + kanat çırpma); ortalama ~40 sn'de bir
 			// "climb" = yakındaki daha yüksek bir pencereye zıpla
-			_ when Demo => Pick(("idle", 2), ("peck", 2), ("flap", 1)), // çekimde uyumasın, kendi yürüyüp tırmanmasın (komutla yürür)
+			_ when Filming => Pick(("idle", 2), ("peck", 2), ("flap", 1)), // çekimde uyumasın, kendi yürüyüp tırmanmasın (komutla yürür)
 			_ => Pick(("walk", 4), ("idle", 2), ("peck", 3), ("sit", 1), ("sleep", night ? 5 : 0.25f), ("flap", 1.5f), ("climb", 0.6f)),
 		};
 		modeT = 0;
@@ -239,8 +239,8 @@ sealed class PetBehavior
 		return true;
 	}
 
-	// ---- tanıtım videosu çekimi (--demo) ----
-	public bool Demo;
+	// ---- tanıtım videosu çekimi (--cekim) ----
+	public bool Filming;
 
 	// Görev çubuğunun üstünde verilen yere koy (kesme arasında; yürüyerek gitmez)
 	public void Place(float x, int dir)

@@ -45,15 +45,15 @@ sealed unsafe class App
 	DesktopAccount? Sel => accounts.FirstOrDefault(a => a.Id == settings.Selected)
 		?? accounts.FirstOrDefault(a => a.Cache.Pet is { Found: true }) ?? accounts.FirstOrDefault();
 	PetCache cache => Sel?.Cache ?? NoCache;
-	bool AnyLoggedIn => accounts.Any(a => a.LoggedIn);
+	bool AnyLoggedIn => accounts.Any(a => a.LoggedIn && !a.IsDemo); // gerçek (Steam) hesap
 
-	// Tanıtım videosu çekimi (--demo): hesap adı ve profil fotoğrafı gösterilmez, tavuk uyumaz/oturmaz,
-	// davranışlar WM_DEMO ile tetiklenir. Normal kullanımda kapalı.
-	readonly bool demo;
+	// Tanıtım videosu çekimi (--cekim): hesap adı ve profil fotoğrafı gösterilmez, tavuk uyumaz/oturmaz,
+	// davranışlar WM_DEMO ile tetiklenir. Normal kullanımda kapalı. ("Giriş yapmadan dene" ayrı: demo hesabı)
+	readonly bool filming;
 
-	public App(bool startedAtLogin, bool demo = false)
+	public App(bool startedAtLogin, bool filming = false)
 	{
-		this.demo = demo;
+		this.filming = filming;
 		DesktopAccount.MigrateLegacy(settings);
 		foreach (var id in settings.Accounts.Where(DesktopAccount.ValidId))
 		{
@@ -62,6 +62,8 @@ sealed unsafe class App
 			a.LoadAvatar();
 			accounts.Add(a);
 		}
+		if (settings.Demo && accounts.Count == 0) accounts.Add(DesktopAccount.Demo()); // giriş yapmadan deniyordu
+		else settings.Demo = false;
 		tray = new TrayIcon(msg.Hwnd);
 		tray.SetIcon(Brand.TrayMark());
 		tray.BalloonIcon = Brand.BalloonIcon();
@@ -75,7 +77,7 @@ sealed unsafe class App
 			if (accounts.Count == 0) OpenLogin();
 			else login?.ShowAndFocus();
 		};
-		if (demo) msg.Demo = DemoCommand;
+		if (filming) msg.Demo = DemoCommand;
 		tray.Add();
 		UpdateTray();
 		if (Sel is { } sel) { Store.SeedHistory(sel.Cache); sel.Save(); }
@@ -289,7 +291,7 @@ sealed unsafe class App
 		}
 		else
 		{
-			foreach (var a in accounts.Where(a => a.LoggedIn)) SetState(a, "waiting", "CS2 kapandı, birazdan güncellenecek…");
+			foreach (var a in accounts.Where(a => a.LoggedIn && !a.IsDemo)) SetState(a, "waiting", "CS2 kapandı, birazdan güncellenecek…");
 			afterCloseAt = DateTime.UtcNow + AfterCs2Close;
 			UpdateTray();
 		}
@@ -302,7 +304,7 @@ sealed unsafe class App
 	{
 		if (fetching) return;
 		if (cs2Running) { UpdateTray(); return; }
-		var list = (only != null ? [only] : accounts).Where(a => a.LoggedIn).ToList();
+		var list = (only != null ? [only] : accounts).Where(a => a.LoggedIn && !a.IsDemo).ToList();
 		if (list.Count == 0) { UpdateTray(); return; }
 		fetching = true;
 		foreach (var a in list) SetState(a, "fetching", "Güncelleniyor…");
@@ -418,6 +420,7 @@ sealed unsafe class App
 	// Hesabı kaldır: oturumu, önbelleği ve profil fotoğrafı silinir
 	void Logout(DesktopAccount a)
 	{
+		if (a.IsDemo) { EndDemo(); return; }
 		bool wasSelected = a == Sel;
 		a.Store.Clear("kullanıcı çıkış yaptı");
 		try { Directory.Delete(a.Dir, true); } catch (Exception e) { Log.Write($"hesap klasörü silinemedi: {e.Message}"); }
@@ -428,6 +431,33 @@ sealed unsafe class App
 		if (wasSelected) EnsureModel();
 		ApplyVisibility();
 		UpdateTray();
+	}
+
+	// Giriş penceresindeki "Giriş yapmadan dene": örnek tavuk masaüstünde dolaşır, Kümes penceresi açılır
+	void StartDemo()
+	{
+		if (accounts.Any(a => a.IsDemo)) return;
+		Log.Write("giriş yapmadan deneniyor (örnek tavuk)");
+		var d = DesktopAccount.Demo();
+		accounts.Add(d);
+		settings.Demo = true;
+		if (login != null) { loginCts?.Cancel(); login.Dispose(); login = null; }
+		Select(d);
+		OpenPanel();
+	}
+
+	// Demo kapatıldı (Ayarlar) ya da gerçek hesapla giriş yapıldı
+	void EndDemo(bool openLogin = true)
+	{
+		if (accounts.FirstOrDefault(a => a.IsDemo) is not { } d) return;
+		accounts.Remove(d);
+		settings.Demo = false;
+		if (settings.Selected == d.Id) settings.Selected = null;
+		Store.Save("settings.json", settings);
+		EnsureModel();
+		ApplyVisibility();
+		UpdateTray();
+		if (openLogin && accounts.Count == 0) OpenLogin();
 	}
 
 	void Select(DesktopAccount a)
@@ -445,7 +475,7 @@ sealed unsafe class App
 	void OpenLogin()
 	{
 		if (login != null) { login.ShowAndFocus(); return; }
-		var w = new LoginWindow();
+		var w = new LoginWindow(canDemo: accounts.Count == 0); // hiç hesap yoksa "Giriş yapmadan dene"
 		w.SetIcon(windowIcon.Small, windowIcon.Big);
 		login = w;
 		bool moving = false;
@@ -456,6 +486,7 @@ sealed unsafe class App
 			if (m) msg.BeginModal(); else msg.EndModal(); // pencere sürüklenirken tavuk donmasın
 		};
 		w.Closed = () => { loginCts?.Cancel(); if (login == w) login = null; };
+		w.DemoRequested = () => msg.Post(StartDemo); // pencerenin kendi mesajı bitince kapansın
 		w.ShowAndFocus();
 
 		loginCts?.Cancel();
@@ -516,7 +547,8 @@ sealed unsafe class App
 			if (login == w) w.SetMessage("Giriş yapılamadı. Tekrar dene.", bad: true);
 			return;
 		}
-		var a = accounts.FirstOrDefault(x => x.Id == id);
+		EndDemo(openLogin: false); // gerçek hesap geldi: örnek tavuk kalkar
+		var a = accounts.FirstOrDefault(x => x.Id == id && !x.IsDemo);
 		if (a == null)
 		{
 			a = new DesktopAccount(id);
@@ -556,9 +588,9 @@ sealed unsafe class App
 
 	MainModel PanelState() => new(
 		accounts.Select(a => new AccountModel(
-			a.Id, demo ? "Oyuncu" : a.DisplayName, a.Cache.Pet,
+			a.Id, filming ? "Oyuncu" : a.DisplayName, a.Cache.Pet,
 			cs2Running && a.State is "ok" or "idle" ? "cs2" : a.State, a.Message,
-			demo ? null : a.Avatar, a.AvatarW, a.AvatarH,
+			filming ? null : a.Avatar, a.AvatarW, a.AvatarH,
 			a == Sel ? heroImage : collection?.ThumbFor(a.Cache.Pet), a == Sel ? HeroSize : Collection.ThumbSize,
 			a.Cache.History,
 			assets != null ? AssetManager.CoatName(assets, a.Cache.Pet) : null)).ToList(),
@@ -569,7 +601,7 @@ sealed unsafe class App
 		extracting,
 		Version);
 
-	// Tanıtım çekimi komutları (WM_DEMO; sadece --demo): 1 tırman, 2 yürü (arg: +1/-1), 3 koy (arg: x px, sağa bakar),
+	// Tanıtım çekimi komutları (WM_DEMO; sadece --cekim): 1 tırman, 2 yürü (arg: +1/-1), 3 koy (arg: x px, sağa bakar),
 	// 4 numara, 5 tavuğu gizle/göster, 6 koy (sola bakar)
 	void DemoCommand(int cmd, int arg)
 	{
@@ -646,7 +678,7 @@ sealed unsafe class App
 			.Item("Kümes penceresini aç", OpenPanel)
 			.Separator()
 			.Item("Şimdi güncelle", () => Refresh("manual"), enabled: loggedIn && !fetching)
-			.Item(accounts.Count > 0 ? "Steam hesabı ekle" : "Steam ile giriş yap", OpenLogin)
+			.Item(AnyLoggedIn ? "Steam hesabı ekle" : "Steam ile giriş yap", OpenLogin)
 			.Separator()
 			.Item("Tavuğu göster", () => ChangeSetting(s => s.Visible = !s.Visible), isChecked: settings.Visible)
 			.Item("Her zaman üstte", () => ChangeSetting(s => s.AlwaysOnTop = !s.AlwaysOnTop), isChecked: settings.AlwaysOnTop)
@@ -736,7 +768,7 @@ sealed unsafe class App
 
 	void CheckNotifications(DesktopAccount a)
 	{
-		if (a.Cache.Pet is not { Found: true, FoodExpiresAt: DateTimeOffset f } p) return;
+		if (a.IsDemo || a.Cache.Pet is not { Found: true, FoodExpiresAt: DateTimeOffset f } p) return;
 		var remaining = f - DateTimeOffset.Now;
 		var key = f.ToUnixTimeMilliseconds().ToString();
 		var flags = a.Cache.Notified.GetValueOrDefault(key) ?? new NotifyFlags();
@@ -826,7 +858,7 @@ sealed unsafe class App
 				view = new PetView(gl, model, coat, key, () => cache.Pet, StatusText);
 				view.MenuRequested = ShowMenu;
 				view.HoldChanged = _ => view.KeepOnTop();
-				view.Behavior.Demo = demo;
+				view.Behavior.Filming = filming;
 			}
 			else
 			{

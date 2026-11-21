@@ -12,7 +12,7 @@ sealed unsafe class MessageWindow : WindowBase
 	public const uint WM_WAKE = WM_APP + 1;
 	public const uint WM_TRAY = WM_APP + 2;
 	public const uint WM_SHOW_REQUEST = WM_APP + 3;
-	public const uint WM_DEMO = WM_APP + 10; // tanıtım videosu çekimi: davranış komutu (sadece --demo ile)
+	public const uint WM_DEMO = WM_APP + 10; // tanıtım videosu çekimi: davranış komutu (sadece --cekim ile)
 	public Action<int, int>? Demo;
 
 	static readonly uint taskbarCreated = RegisterWindowMessageW("TaskbarCreated");
