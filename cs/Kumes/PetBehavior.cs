@@ -183,22 +183,14 @@ sealed class PetBehavior
 			"hungry" => Pick(("walk", 1.5f), ("idle", 1), ("peck", 3), ("sit", 3), ("flap", 0.3f)),
 			// "flap" = kendiliğinden numara (tıklamadaki numaralar + kanat çırpma); ortalama ~40 sn'de bir
 			// "climb" = yakındaki daha yüksek bir pencereye zıpla
+			_ when Demo => Pick(("idle", 2), ("peck", 2), ("flap", 1)), // çekimde uyumasın, kendi yürüyüp tırmanmasın (komutla yürür)
 			_ => Pick(("walk", 4), ("idle", 2), ("peck", 3), ("sit", 1), ("sleep", night ? 5 : 0.25f), ("flap", 1.5f), ("climb", 0.6f)),
 		};
 		modeT = 0;
 
 		if (mode == "climb")
 		{
-			if (Speed < 3 * s && FindClimbTarget?.Invoke() is { } t)
-			{
-				// Sabit güçle yukarı zıplamayı dene: tepe noktası ~130 px yukarıda. Hedef ondan alçaksa süzülürken
-				// üstüne konar, yüksekse yetişemez ve aşağı süzülür. İleri hız hedefin ortasına yönelir (sınırlı).
-				float aim = Math.Clamp(X, t.Left + 30 * s, Math.Max(t.Left + 30 * s, t.Right - 30 * s));
-				float tApex = MathF.Sqrt(2 * ClimbHeight * s / (JumpGravity * s));
-				float vx = Math.Clamp((aim - X) / (tApex + 0.3f), -HopSpeed * s, HopSpeed * s);
-				StartJump(vx, ClimbHeight * s);
-				return;
-			}
+			if (Speed < 3 * s && TryClimb()) return;
 			mode = "idle"; // çıkacak yer yok
 		}
 
@@ -234,6 +226,34 @@ sealed class PetBehavior
 	}
 
 	string sitVariant = "sit";
+
+	// Sabit güçle yukarı zıplamayı dene: tepe noktası ~130 px yukarıda. Hedef ondan alçaksa süzülürken
+	// üstüne konar, yüksekse yetişemez ve aşağı süzülür. İleri hız hedefin ortasına yönelir (sınırlı).
+	public bool TryClimb()
+	{
+		if (InAir || FindClimbTarget?.Invoke() is not { } t) return false;
+		float aim = Math.Clamp(X, t.Left + 30 * s, Math.Max(t.Left + 30 * s, t.Right - 30 * s));
+		float tApex = MathF.Sqrt(2 * ClimbHeight * s / (JumpGravity * s));
+		float vx = Math.Clamp((aim - X) / (tApex + 0.3f), -HopSpeed * s, HopSpeed * s);
+		StartJump(vx, ClimbHeight * s);
+		return true;
+	}
+
+	// ---- tanıtım videosu çekimi (--demo) ----
+	public bool Demo;
+
+	// Görev çubuğunun üstünde verilen yere koy (kesme arasında; yürüyerek gitmez)
+	public void Place(float x, int dir)
+	{
+		Held = Falling = Jumping = Airborne = false;
+		OnLedge = null;
+		X = prevX = x;
+		Alt = 0;
+		vy = 0;
+		Speed = 0;
+		Dir = dir;
+		StandStill(1);
+	}
 
 	// davranış modu -> CS2 animasyonu
 	public string DesiredAnim()

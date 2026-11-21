@@ -621,7 +621,7 @@ sealed unsafe class MainWindow : WindowBase
 				S.FillRoundRect(X0 + 16, ry + 13, 38, 38, 10, Raised);
 				Glyph(GAdd, X0 + 35, ry + 32, 13, Text);
 				S.Text("Hesap ekle", X0 + 68, ry + 13, F(14.5f, 600), hot ? Lavender : Text);
-				S.Text("Başka bir hesaptaki tavuğu da takip et (QR ile giriş)", X0 + 68, ry + 34, F(12.5f), Muted);
+				S.Text("Başka bir hesaptaki tavuğu da takip et", X0 + 68, ry + 34, F(12.5f), Muted);
 				Item(X0, ry, CW, 64, "login");
 				return;
 			}

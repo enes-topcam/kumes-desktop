@@ -300,6 +300,8 @@ sealed unsafe class PetView : IDisposable
 		if (time > noLandUntil) noLandHwnd = 0;
 	}
 
+	public void DemoHop() => Behavior.Hop(HeadH); // tanıtım çekimi: tıklanmış gibi numara + kalp
+
 	public void Frame(float dt)
 	{
 		if (!Visible) return;

@@ -12,6 +12,8 @@ sealed unsafe class MessageWindow : WindowBase
 	public const uint WM_WAKE = WM_APP + 1;
 	public const uint WM_TRAY = WM_APP + 2;
 	public const uint WM_SHOW_REQUEST = WM_APP + 3;
+	public const uint WM_DEMO = WM_APP + 10; // tanıtım videosu çekimi: davranış komutu (sadece --demo ile)
+	public Action<int, int>? Demo;
 
 	static readonly uint taskbarCreated = RegisterWindowMessageW("TaskbarCreated");
 	readonly ConcurrentQueue<Action> queue = new();
@@ -55,6 +57,7 @@ sealed unsafe class MessageWindow : WindowBase
 		if (msg == WM_WAKE) { RunQueued(); return 0; }
 		if (msg == WM_TRAY) { TrayEvent?.Invoke((uint)(lParam & 0xFFFF)); return 0; }
 		if (msg == WM_SHOW_REQUEST) { ShowRequested?.Invoke(); return 0; }
+		if (msg == WM_DEMO) { Demo?.Invoke((int)wParam, (int)lParam); return 0; }
 		if (msg == WM_TIMER && wParam == 1) { Tick?.Invoke(); return 0; }
 		if (msg == taskbarCreated && taskbarCreated != 0) { TaskbarRecreated?.Invoke(); return 0; }
 		return null;

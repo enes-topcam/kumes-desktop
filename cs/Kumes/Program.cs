@@ -54,7 +54,7 @@ if (!first)
 Log.Write("---- Kümes (C#) başladı ----");
 try
 {
-	new App(startedAtLogin: args.Contains("--autostart")).Run();
+	new App(startedAtLogin: args.Contains("--autostart"), demo: args.Contains("--demo")).Run();
 	return 0;
 }
 catch (Exception e)

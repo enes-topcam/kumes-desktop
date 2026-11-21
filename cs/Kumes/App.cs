@@ -47,8 +47,13 @@ sealed unsafe class App
 	PetCache cache => Sel?.Cache ?? NoCache;
 	bool AnyLoggedIn => accounts.Any(a => a.LoggedIn);
 
-	public App(bool startedAtLogin)
+	// Tanıtım videosu çekimi (--demo): hesap adı ve profil fotoğrafı gösterilmez, tavuk uyumaz/oturmaz,
+	// davranışlar WM_DEMO ile tetiklenir. Normal kullanımda kapalı.
+	readonly bool demo;
+
+	public App(bool startedAtLogin, bool demo = false)
 	{
+		this.demo = demo;
 		DesktopAccount.MigrateLegacy(settings);
 		foreach (var id in settings.Accounts.Where(DesktopAccount.ValidId))
 		{
@@ -70,6 +75,7 @@ sealed unsafe class App
 			if (accounts.Count == 0) OpenLogin();
 			else login?.ShowAndFocus();
 		};
+		if (demo) msg.Demo = DemoCommand;
 		tray.Add();
 		UpdateTray();
 		if (Sel is { } sel) { Store.SeedHistory(sel.Cache); sel.Save(); }
@@ -550,9 +556,9 @@ sealed unsafe class App
 
 	MainModel PanelState() => new(
 		accounts.Select(a => new AccountModel(
-			a.Id, a.DisplayName, a.Cache.Pet,
+			a.Id, demo ? "Oyuncu" : a.DisplayName, a.Cache.Pet,
 			cs2Running && a.State is "ok" or "idle" ? "cs2" : a.State, a.Message,
-			a.Avatar, a.AvatarW, a.AvatarH,
+			demo ? null : a.Avatar, a.AvatarW, a.AvatarH,
 			a == Sel ? heroImage : collection?.ThumbFor(a.Cache.Pet), a == Sel ? HeroSize : Collection.ThumbSize,
 			a.Cache.History,
 			assets != null ? AssetManager.CoatName(assets, a.Cache.Pet) : null)).ToList(),
@@ -562,6 +568,23 @@ sealed unsafe class App
 		IsAutostart(),
 		extracting,
 		Version);
+
+	// Tanıtım çekimi komutları (WM_DEMO; sadece --demo): 1 tırman, 2 yürü (arg: +1/-1), 3 koy (arg: x px, sağa bakar),
+	// 4 numara, 5 tavuğu gizle/göster, 6 koy (sola bakar)
+	void DemoCommand(int cmd, int arg)
+	{
+		if (view == null) return;
+		var b = view.Behavior;
+		switch (cmd)
+		{
+			case 1: b.TryClimb(); break;
+			case 2: b.WalkTest(arg >= 0 ? 1 : -1, 6); break;
+			case 3: b.Place(arg, 1); break;
+			case 4: view.DemoHop(); break;
+			case 5: ChangeSetting(s => s.Visible = !s.Visible); break;
+			case 6: b.Place(arg, -1); break;
+		}
+	}
 
 	void OpenPanel()
 	{
@@ -803,6 +826,7 @@ sealed unsafe class App
 				view = new PetView(gl, model, coat, key, () => cache.Pet, StatusText);
 				view.MenuRequested = ShowMenu;
 				view.HoldChanged = _ => view.KeepOnTop();
+				view.Behavior.Demo = demo;
 			}
 			else
 			{
