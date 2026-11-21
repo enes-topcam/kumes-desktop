@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Masaüstü ve mobilin ortak kodu: Steam girişi, CS2'den tavuk verisi, süre/tarih biçimleri, ölçüm geçmişi.
+       Platforma bağlı hiçbir şey yok (pencere, DPAPI, dosya yolu): onlar uygulamaların kendisinde. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Kumes</RootNamespace>
+    <IsTrimmable>true</IsTrimmable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SteamKit2" Version="3.5.0" />
+  </ItemGroup>
+
+</Project>

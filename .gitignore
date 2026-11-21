@@ -1,0 +1,11 @@
+# Derleme çıktıları
+cs/**/bin/
+cs/**/obj/
+.vs/
+.vscode/
+*.user
+
+# Source 2 Viewer CLI (CS2 modelini çıkarmak için; repoya konmaz): tools/vrf/Source2Viewer-CLI.exe
+tools/vrf/
+
+*.log
