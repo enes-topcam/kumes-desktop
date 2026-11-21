@@ -31,6 +31,11 @@ if (args.Length >= 3 && args[0] == "--clip-report")
 	Snapshot.ClipReport(args[1], args[2]);
 	return 0;
 }
+if (args.Length >= 1 && args[0] == "--login-test")
+{
+	LoginTest.Run(); // geliştirme: giriş penceresi, Steam'e bağlanmadan
+	return 0;
+}
 if (args.Length >= 5 && args[0] == "--snapshot")
 {
 	Snapshot.Run(args);

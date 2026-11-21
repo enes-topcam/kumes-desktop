@@ -261,4 +261,36 @@ static unsafe class Win32
 
 	public static short LoWord(nint v) => (short)(v & 0xFFFF);
 	public static short HiWord(nint v) => (short)((v >> 16) & 0xFFFF);
+
+	// ---------- metin kutuları (giriş penceresindeki kullanıcı adı / şifre / kod) ----------
+	public const uint WS_CHILD = 0x40000000, WS_VISIBLE = 0x10000000, WS_CLIPCHILDREN = 0x2000000;
+	public const uint ES_CENTER = 0x1, ES_UPPERCASE = 0x8, ES_PASSWORD = 0x20, ES_AUTOHSCROLL = 0x80;
+	public const uint WM_COMMAND = 0x111, WM_SETFONT = 0x30, WM_CTLCOLOREDIT = 0x133, EM_SETSEL = 0xB1, EM_LIMITTEXT = 0xC5, EM_SETPASSWORDCHAR = 0xCC;
+	public const int EN_SETFOCUS = 0x100, EN_KILLFOCUS = 0x200, VK_CONTROL = 0x11;
+	[DllImport(G, CharSet = CharSet.Unicode)]
+	public static extern nint CreateFontW(int h, int w, int esc, int orient, int weight, uint italic, uint underline, uint strike,
+		uint charset, uint outPrec, uint clipPrec, uint quality, uint pitch, string face);
+	[DllImport(G)] public static extern nint CreateSolidBrush(uint colorRef);
+	[DllImport(G)] public static extern uint SetTextColor(nint dc, uint colorRef);
+	[DllImport(G)] public static extern uint SetBkColor(nint dc, uint colorRef);
+	[DllImport(U)] public static extern nint SetFocus(nint hwnd);
+	[DllImport(U)] public static extern nint GetFocus();
+	[DllImport(U)] public static extern int GetWindowTextLengthW(nint hwnd);
+	[DllImport(U, CharSet = CharSet.Unicode)] public static extern int GetWindowTextW(nint hwnd, char* buf, int max);
+	[DllImport(U, CharSet = CharSet.Unicode)] public static extern bool SetWindowTextW(nint hwnd, string text);
+	[DllImport(U)] public static extern bool MoveWindow(nint hwnd, int x, int y, int w, int h, bool repaint);
+
+	public static string GetText(nint hwnd)
+	{
+		int n = GetWindowTextLengthW(hwnd);
+		if (n <= 0) return "";
+		var buf = new char[n + 1];
+		fixed (char* p = buf) n = GetWindowTextW(hwnd, p, buf.Length);
+		var s = new string(buf, 0, n);
+		Array.Clear(buf); // şifre bellekte gereksiz kopya bırakmasın
+		return s;
+	}
+
+	// 0xRRGGBBAA -> GDI COLORREF (0x00BBGGRR)
+	public static uint ColorRef(uint rgba) => ((rgba >> 24) & 255) | (((rgba >> 16) & 255) << 8) | (((rgba >> 8) & 255) << 16);
 }

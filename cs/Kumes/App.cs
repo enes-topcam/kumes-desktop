@@ -108,6 +108,7 @@ sealed unsafe class App
 			while (PeekMessageW(out var m, 0, 0, 0, PM_REMOVE))
 			{
 				if (m.Message == WM_QUIT) running = false;
+				if (login != null && login.PreTranslate(m)) continue; // giriş penceresindeki yazı kutuları: Enter, Tab…
 				TranslateMessage(m);
 				DispatchMessageW(m);
 			}
@@ -200,6 +201,7 @@ sealed unsafe class App
 		if (now >= closeLoginAt)
 		{
 			closeLoginAt = DateTime.MaxValue;
+			loginCts?.Cancel(); // açık kalan QR/şifre girişi de dursun
 			login?.Dispose();
 			login = null;
 		}
@@ -433,7 +435,7 @@ sealed unsafe class App
 
 	// ---------- giriş penceresi ----------
 
-	// QR ile giriş: yeni hesap eklenir ya da süresi dolan hesabın oturumu yenilenir
+	// QR ya da kullanıcı adı + şifre ile giriş: yeni hesap eklenir ya da süresi dolan hesabın oturumu yenilenir
 	void OpenLogin()
 	{
 		if (login != null) { login.ShowAndFocus(); return; }
@@ -458,27 +460,7 @@ sealed unsafe class App
 		Task.Run(() => qr.QrLoginAsync(url => msg.Post(() => { if (login == w) w.SetQr(url); }), null, ct))
 			.ContinueWith(t => msg.Post(() =>
 			{
-				if (t.IsCompletedSuccessfully)
-				{
-					Log.Write("QR ile giriş yapıldı");
-					var id = t.Result.AccountName.ToLowerInvariant();
-					var a = accounts.FirstOrDefault(x => x.Id == id);
-					if (a == null)
-					{
-						a = new DesktopAccount(id);
-						accounts.Add(a);
-						settings.Accounts.Add(id);
-					}
-					a.Store.Save(t.Result);
-					SetState(a, "idle");
-					if (login == w)
-					{
-						w.SetDone("Giriş tamam! Tavuğun aranıyor…");
-						closeLoginAt = DateTime.UtcNow.AddSeconds(1.5);
-					}
-					Select(a);
-					Refresh("login", a);
-				}
+				if (t.IsCompletedSuccessfully) { Log.Write("QR ile giriş yapıldı"); LoggedIn(w, t.Result); }
 				else if (t.Exception?.InnerException is not (OperationCanceledException or null))
 				{
 					var err = t.Exception.InnerException;
@@ -486,6 +468,58 @@ sealed unsafe class App
 					if (login == w) w.SetMessage(err.Message, bad: true);
 				}
 			}));
+
+		// Kullanıcı adı + şifre (mobildeki gibi): Steam Guard adımları pencereye sorulur
+		CancellationTokenSource? pwCts = null;
+		w.PasswordCancel = () => pwCts?.Cancel();
+		w.PasswordLogin = (user, pass) =>
+		{
+			pwCts?.Cancel();
+			var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+			cts.CancelAfter(TimeSpan.FromMinutes(6));
+			pwCts = cts;
+			var svc = new SteamService(new MemorySessionStore(), DesktopAccount.DeviceName, SteamService.DesktopLoginId);
+			var guard = w.CreateGuard(msg.Post);
+			Task.Run(() => svc.PasswordLoginAsync(user, pass, guard, cts.Token))
+				.ContinueWith(t => msg.Post(() =>
+				{
+					if (t.IsCompletedSuccessfully) { Log.Write("şifreyle giriş yapıldı"); LoggedIn(w, t.Result); return; }
+					string? err = null;
+					switch (t.Exception?.InnerException)
+					{
+						case null or OperationCanceledException: break; // vazgeçildi: hata değil
+						case SteamException e: err = e.Message; break;
+						case var e:
+							Log.Write($"şifreyle giriş hatası: {e}");
+							err = "Steam'e bağlanılamadı. Biraz sonra tekrar dene.";
+							break;
+					}
+					if (login == w) w.PasswordFailed(err);
+				}));
+		};
+	}
+
+	// Giriş tamam (QR ya da şifre): hesap eklenir ya da oturumu yenilenir, tavuğu aranır
+	void LoggedIn(LoginWindow w, SavedSession session)
+	{
+		loginCts?.Cancel(); // diğer yol (şifreyle girildiyse QR, QR ile girildiyse şifre) Steam'e bağlanmayı bıraksın
+		var id = session.AccountName.ToLowerInvariant();
+		var a = accounts.FirstOrDefault(x => x.Id == id);
+		if (a == null)
+		{
+			a = new DesktopAccount(id);
+			accounts.Add(a);
+			settings.Accounts.Add(id);
+		}
+		a.Store.Save(session);
+		SetState(a, "idle");
+		if (login == w)
+		{
+			w.SetDone("Giriş tamam! Tavuğun aranıyor…");
+			closeLoginAt = DateTime.UtcNow.AddSeconds(1.5);
+		}
+		Select(a);
+		Refresh("login", a);
 	}
 
 	// ---------- tray ve menü ----------
