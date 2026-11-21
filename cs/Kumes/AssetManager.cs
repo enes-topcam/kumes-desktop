@@ -154,12 +154,18 @@ static partial class AssetManager
 
 	public static string? FindCli()
 	{
-		// exe'nin yanında ya da üst klasörlerde (geliştirirken: depo kökü/tools/vrf)
+		// Yayın paketi: exe'nin yanındaki tools\vrf. Rastgele üst klasörlerde aranmaz: C:\ gibi herkesin klasör
+		// açabildiği bir yere konmuş sahte bir tools\vrf\Source2Viewer-CLI.exe çalıştırılmasın.
+		var p = Path.Combine(AppContext.BaseDirectory, "tools", "vrf", "Source2Viewer-CLI.exe");
+		if (File.Exists(p)) return p;
+		// Geliştirme: exe cs\Kumes\bin\... altındaysa depo kökündeki tools\vrf
 		var dir = new DirectoryInfo(AppContext.BaseDirectory);
-		for (int i = 0; i < 8 && dir != null; i++, dir = dir.Parent)
+		for (int i = 0; i < 6 && dir != null; i++, dir = dir.Parent)
 		{
-			var p = Path.Combine(dir.FullName, "tools", "vrf", "Source2Viewer-CLI.exe");
-			if (File.Exists(p)) return p;
+			if (!File.Exists(Path.Combine(dir.FullName, "Kumes.csproj"))) continue;
+			if (dir.Parent?.Parent is not { } root) return null;
+			p = Path.Combine(root.FullName, "tools", "vrf", "Source2Viewer-CLI.exe");
+			return File.Exists(p) ? p : null;
 		}
 		return null;
 	}

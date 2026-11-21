@@ -50,7 +50,7 @@ sealed unsafe class App
 	public App(bool startedAtLogin)
 	{
 		DesktopAccount.MigrateLegacy(settings);
-		foreach (var id in settings.Accounts)
+		foreach (var id in settings.Accounts.Where(DesktopAccount.ValidId))
 		{
 			var a = new DesktopAccount(id);
 			if (!a.LoggedIn) a.State = "need-login";
@@ -504,6 +504,12 @@ sealed unsafe class App
 	{
 		loginCts?.Cancel(); // diğer yol (şifreyle girildiyse QR, QR ile girildiyse şifre) Steam'e bağlanmayı bıraksın
 		var id = session.AccountName.ToLowerInvariant();
+		if (!DesktopAccount.ValidId(id))
+		{
+			Log.Write("girişten beklenmeyen hesap adı geldi, kaydedilmedi");
+			if (login == w) w.SetMessage("Giriş yapılamadı. Tekrar dene.", bad: true);
+			return;
+		}
 		var a = accounts.FirstOrDefault(x => x.Id == id);
 		if (a == null)
 		{

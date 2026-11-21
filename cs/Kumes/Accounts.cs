@@ -33,7 +33,12 @@ sealed class DesktopAccount
 	public bool LoggedIn => Store.Exists;
 	public string DisplayName => Cache.Profile?.PersonaName ?? Id;
 
-	public static string DirOf(string id) => Kumes.Store.File(Path.Combine("accounts", id));
+	// Hesap adı klasör adı olur (kaldırınca klasör silinir): Steam hesap adları gibi sadece harf, rakam, alt çizgi
+	public static bool ValidId(string id) => id.Length is > 0 and <= 64 && id.All(c => c is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '_');
+
+	public static string DirOf(string id) => ValidId(id)
+		? Kumes.Store.File(Path.Combine("accounts", id))
+		: throw new ArgumentException($"geçersiz hesap adı: {id}");
 
 	public void Save()
 	{
@@ -63,6 +68,7 @@ sealed class DesktopAccount
 		var legacy = new TokenStore(Kumes.Store.File("steam-session.bin"));
 		if (legacy.Load() is not { } s) return;
 		var id = s.AccountName.ToLowerInvariant();
+		if (!ValidId(id)) return;
 		var dir = DirOf(id);
 		Directory.CreateDirectory(dir);
 		foreach (var name in new[] { "steam-session.bin", "pet-cache.json", "avatar.jpg" })
