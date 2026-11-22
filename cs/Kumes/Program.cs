@@ -12,7 +12,7 @@ if (args.Length >= 2 && args[0] == "--ledges")
 {
 	// geliştirme: tavuğun konabileceği kenarlar (pencere başlığı yazılmaz, sadece sınıf adı ve konum)
 	var wa = GetWorkArea();
-	var lines = Ledges.Find(wa, wa.Top + 174, 60).Select(l =>
+	var lines = Ledges.Find(wa, wa.Top + 3, 60).Select(l =>
 	{
 		var cls = new string('\0', 0);
 		unsafe { char* b = stackalloc char[64]; int n = GetClassNameW(l.Hwnd, b, 64); cls = new string(b, 0, n); }

@@ -16,8 +16,9 @@ sealed class Perch
 static unsafe class Ledges
 {
 	static readonly List<nint> found = new();
-	static readonly uint myPid = (uint)Environment.ProcessId;
-	static readonly HashSet<string> ignoredClasses = ["Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd"];
+	// KumesLayer: tavuğun kendi penceresi. Kümes'in diğer pencereleri (ana pencere, giriş) sıradan pencere sayılır:
+	// tavuk üstlerine konabilir ve arkalarında kalan kenarları kapatırlar.
+	static readonly HashSet<string> ignoredClasses = ["Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd", "KumesLayer"];
 
 	[UnmanagedCallersOnly]
 	static int Collect(nint hwnd, nint _)
@@ -56,8 +57,6 @@ static unsafe class Ledges
 		var result = new List<Perch>();
 		foreach (var h in found)
 		{
-			GetWindowThreadProcessId(h, out uint pid);
-			if (pid == myPid) continue; // kendi pencerelerimiz
 			if (!TryGetBounds(h, out var r)) continue;
 			if (ignoredClasses.Contains(ClassName(h))) continue;
 

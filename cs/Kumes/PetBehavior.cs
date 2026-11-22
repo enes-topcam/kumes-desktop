@@ -74,6 +74,10 @@ sealed class PetBehavior
 	// başlayıp dikleşir). Süzülürken altına ilk gelen pencere kenarına konar; yetişemezse aşağı devam eder.
 	// FindClimbTarget(): yakında, daha yüksekte bir kenar (tırmanmayı DENER; çok yüksekse yetişemez)
 	public Func<Kumes.Native.Perch?>? FindClimbTarget;
+	// FindStepUp(yön): yürürken hemen önünde (ucuna gelmek üzere) olan, zıplayınca yetişilecek kadar alçak bir kenar
+	public Func<int, Kumes.Native.Perch?>? FindStepUp;
+	bool stepUpThisWalk; // bu yürüyüşte önüne çıkan basamağa çıksın mı (her yürüyüşte değil; komutla yürürken hep)
+	float stepCheck;
 	public bool Jumping;
 	float jvx, jvy;
 	float glideVx; // süzülürken yatay hız (zıplamadan kalan; yavaşça azalır)
@@ -206,6 +210,7 @@ sealed class PetBehavior
 		Mode = mode;
 		var (a, b) = Dur[mode];
 		modeDur = a + (float)rng.NextDouble() * (b - a);
+		stepUpThisWalk = mode == "walk" && rng.NextDouble() < 0.6;
 		if (mode == "walk" && rng.NextDouble() < 0.35)
 		{
 			Dir = -Dir;
@@ -232,11 +237,16 @@ sealed class PetBehavior
 	public bool TryClimb()
 	{
 		if (InAir || FindClimbTarget?.Invoke() is not { } t) return false;
+		ClimbTo(t);
+		return true;
+	}
+
+	void ClimbTo(Kumes.Native.Perch t)
+	{
 		float aim = Math.Clamp(X, t.Left + 30 * s, Math.Max(t.Left + 30 * s, t.Right - 30 * s));
 		float tApex = MathF.Sqrt(2 * ClimbHeight * s / (JumpGravity * s));
 		float vx = Math.Clamp((aim - X) / (tApex + 0.3f), -HopSpeed * s, HopSpeed * s);
 		StartJump(vx, ClimbHeight * s);
-		return true;
 	}
 
 	// ---- tanıtım videosu çekimi (--cekim) ----
@@ -349,6 +359,13 @@ sealed class PetBehavior
 			// kenarın ucuna gittiği yönde vardıysa: ara sıra yana ya da aşağı zıpla, yoksa geri dön
 			else if (X < lo) { X = lo; if (!(Dir < 0 && TryLeaveLedge(-1, worldWidth))) Dir = 1; }
 			else if (X > hi) { X = hi; if (!(Dir > 0 && TryLeaveLedge(1, worldWidth))) Dir = -1; }
+
+			// merdiven gibi: yürüdüğü yönde önüne alçak bir kenar çıktıysa üstüne zıpla
+			if (Mode == "walk" && stepUpThisWalk && !InAir && (stepCheck -= dt) <= 0)
+			{
+				stepCheck = 0.2f;
+				if (FindStepUp?.Invoke(Dir) is { } up) ClimbTo(up);
+			}
 		}
 
 		for (int i = Particles.Count - 1; i >= 0; i--)
@@ -384,6 +401,7 @@ sealed class PetBehavior
 		Dir = dir;
 		modeT = 0;
 		modeDur = seconds;
+		stepUpThisWalk = true;
 	}
 
 	// Test menüsü: seçilen animasyonu oynat, bitene kadar yerinde dursun

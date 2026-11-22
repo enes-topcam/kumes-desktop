@@ -177,9 +177,11 @@ sealed unsafe class PetView : IDisposable
 	double nextScan;
 	bool wasFalling;
 
-	// Tavuğun KENDİ seçtiği yerler (konma/atlama/tırmanma) bundan yüksek olmaz: tavuk ekranın üstünden taşmasın.
-	// Ama konduğu pencereyi sen yukarı sürüklersen tavuk üstünde kalır (tepeye yapışma/tam ekran hariç).
-	int MinLedgeTop => wa.Top + (int)(H - Pad);
+	// Tavuğun KENDİ seçtiği yerler (konma/atlama/tırmanma) bundan yüksek olmaz: tavuğun kendisi (~0,37 birim boyunda)
+	// ekranın üstünden taşmasın. Penceresinin üstteki boş kısmı (barlar/baloncuk yeri) ekranın dışına çıkabilir; eskiden
+	// pencerenin tamamı sığsın diye ~175 px isteniyordu, ekranın üst kısmındaki pencerelere (ör. Steam) konamıyordu.
+	// Konduğu pencereyi sen yukarı sürüklersen tavuk üstünde kalır (tepeye yapışma/tam ekran hariç).
+	int MinLedgeTop => wa.Top + (int)(0.36f * PetRenderer.PxPerUnitCss * s);
 	float MaxAutoAlt => wa.Bottom - MinLedgeTop;
 	bool Reachable(Perch l) => l.Alt <= MaxAutoAlt;
 
@@ -223,6 +225,24 @@ sealed unsafe class PetView : IDisposable
 			&& (x < l.Left ? l.Left - x : x > l.Right ? x - l.Right : 0) <= 200 * s
 			&& Behavior.OnLedge?.Hwnd != l.Hwnd).ToList();
 		return options.Count > 0 ? options[rng.Next(options.Count)] : null;
+	}
+
+	// Yürürken önündeki basamak: 30 px'ten yüksek ama zıplamanın yetişeceği kadar alçak (ClimbHeight'tan biraz az) bir kenar;
+	// ya ~40 px ilerisinin üstünde (altından geçiyor) ya da yakın ucu ~100 px içinde (arada boşluk var: zıplama yatayda
+	// ~130 px gider, ör. yan yana iki pencere arasındaki 47 px'lik açıklık). Birden fazlaysa en alçağı.
+	Perch? StepUpAhead(int dir)
+	{
+		float support = Behavior.SupportAlt, x = Behavior.X;
+		return ledges.Where(l =>
+			{
+				if (!Reachable(l) || l.Hwnd == Behavior.OnLedge?.Hwnd || l.Right - l.Left < 80 * s) return false;
+				if (l.Alt < support + 30 * s || l.Alt > support + (PetBehavior.ClimbHeight - 15) * s) return false;
+				float px = x + dir * 40 * s;
+				if (px >= l.Left + 10 * s && px <= l.Right - 10 * s) return true;
+				float ahead = dir > 0 ? l.Left - x : x - l.Right; // kenarın yakın ucu ne kadar ileride
+				return ahead >= -10 * s && ahead <= 100 * s;
+			})
+			.OrderBy(l => l.Alt).FirstOrDefault();
 	}
 
 	// havadaki tavuğun altındaki ilk kenar (gölge oraya düşer)
@@ -309,6 +329,7 @@ sealed unsafe class PetView : IDisposable
 		time += dt;
 		Behavior.FindLanding ??= LandingBetween;
 		Behavior.FindClimbTarget ??= ClimbTarget;
+		Behavior.FindStepUp ??= StepUpAhead;
 		bool inAir = Behavior.InAir;
 		UpdateNoLand();
 		TrackPerch(); // önce pencereyi izle (tavuğu yeni yerine kaydır), sonra kenarları tara
