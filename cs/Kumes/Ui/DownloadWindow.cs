@@ -1,4 +1,4 @@
-// CS2 kurulu değilken tavuk dosyaları Steam hesabıyla indirilirken açılan pencere: hangi adımda olduğu, kaç MB indiği,
+// CS2 kurulu değilken tavuk dosyaları Valve'dan (anonim Steam girişiyle) indirilirken açılan pencere: hangi adımda olduğu, kaç MB indiği,
 // ilerleme çubuğu. Bitince "hazır" der ve App kapatır; hata olursa "Tekrar dene". Kapatılırsa indirme arka planda sürer.
 // CS2 kuruluysa (dosyalar kurulumdan çıkarılır, bir şey inmez) bu pencere hiç açılmaz. Görünüm giriş penceresiyle aynı.
 using System.Globalization;
@@ -90,7 +90,7 @@ sealed unsafe class DownloadWindow : WindowBase
 		var lead = g.Font(13 * s, 400, Theme.Sans);
 		y += 46 * s;
 		surf.Text(T("CS2 kurulu olmadığı için tavuğun modeli ve renkleri"), pad, y, lead, Theme.Muted);
-		surf.Text(T("Steam hesabınla Valve'dan indiriliyor. Sadece bir kere iner."), pad, y + 18 * s, lead, Theme.Muted);
+		surf.Text(T("Valve'ın sunucusundan indiriliyor. Sadece bir kere iner."), pad, y + 18 * s, lead, Theme.Muted);
 
 		// adım
 		y += 54 * s;

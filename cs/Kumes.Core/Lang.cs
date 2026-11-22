@@ -33,6 +33,15 @@ public static class Lang
 		["Çok fazla deneme yapıldı, biraz bekleyip tekrar dene."] = "Too many attempts. Wait a bit and try again.",
 		["Giriş isteğinin süresi doldu, tekrar dene."] = "The sign-in request expired. Try again.",
 		["Giriş onaylanmadı (zaman aşımı)."] = "The sign-in was not approved (timed out).",
+
+		// ortak kod: CS2 dosyası indirme (Cs2Download)
+		["Steam girişi olmadı: {0}"] = "Steam sign-in failed: {0}",
+		["Steam içerik sunucusu bulunamadı."] = "No Steam content server found.",
+		["CS2 dosyaları Steam deposunda bulunamadı."] = "CS2 files weren't found in the Steam depot.",
+		["Manifest indirilemedi: {0}"] = "Couldn't download the file list: {0}",
+		["CS2 dosya dizini okunamadı (beklenmeyen VPK biçimi)."] = "Couldn't read the CS2 file index (unexpected VPK format).",
+		["Depoda yok: {0}"] = "Not in the depot: {0}",
+		["Dosya parçası indirilemedi: {0}"] = "Couldn't download a file chunk: {0}",
 	};
 
 	public static void Add(IEnumerable<KeyValuePair<string, string>> entries)

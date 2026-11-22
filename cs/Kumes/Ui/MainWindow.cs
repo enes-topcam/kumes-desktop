@@ -505,7 +505,8 @@ sealed unsafe class MainWindow : WindowBase
 		{
 			if (a.State == "need-login") return y + Message(y, T("Tekrar giriş gerekli"), Tf("{0} hesabının Steam oturumu sona erdi.", a.Name), T("Giriş yap"), "login");
 			if (a.State == "fetching" || a.State == "idle") return y + Message(y, T("Tavuk bilgileri alınıyor…"), T("Birkaç saniye sürer."));
-			if (a.State is "cs2" or "waiting") return y + Message(y, T("Birazdan güncellenecek"), a.Message.Length > 0 ? a.Message : T("CS2 açık; kapanınca tavuk bilgisi alınacak."), T("Tekrar dene"), "refresh:" + a.Id);
+			if (a.State == "cs2") return y + Message(y, T("CS2 açık"), T("CS2 açık olduğu için tavuk bilgisi alınamıyor. CS2'yi kapatınca kendiliğinden güncellenir."), T("Tekrar dene"), "refresh:" + a.Id);
+			if (a.State == "waiting") return y + Message(y, T("Birazdan güncellenecek"), a.Message.Length > 0 ? a.Message : T("Birkaç saniye sürer."), T("Tekrar dene"), "refresh:" + a.Id);
 			return y + Message(y, T("Tavuk bilgisi alınamadı"), a.Message.Length > 0 ? a.Message : T("Bağlantını kontrol edip yeniden dene."), T("Tekrar dene"), "refresh:" + a.Id);
 		}
 		if (!a.Pet.Found)
@@ -683,7 +684,7 @@ sealed unsafe class MainWindow : WindowBase
 				Tf("• Kümes, Steam'e ayrı bir cihaz olarak (\"{0}\") bağlanır ve birkaç saniye \"CS2 oynuyor\" görünür. Takas, satın alma, mesaj gibi bir şey yapmaz.", DesktopAccount.DeviceName),
 				T("• Erişimi tamamen kaldırmak için Steam mobil uygulamasında Steam Guard → yetkili cihazlar listesinden \"Kümes Masaüstü\"nü kaldır."))),
 			(T("Bağımsızlık"),
-				T("Kümes, Valve Corporation ve Steam ile bağlantılı değildir, onlar tarafından onaylanmamıştır. Counter-Strike 2, CS2 ve Steam, Valve Corporation'ın ticari markalarıdır. CS2 dosyaları uygulamayla dağıtılmaz. Bilgisayarındaki CS2'den çıkarılır ya da kendi Steam hesabınla Valve'ın sunucularından indirilir.")),
+				T("Kümes, Valve Corporation ve Steam ile bağlantılı değildir, onlar tarafından onaylanmamıştır. Counter-Strike 2, CS2 ve Steam, Valve Corporation'ın ticari markalarıdır. CS2 dosyaları uygulamayla dağıtılmaz. Bilgisayarındaki CS2'den çıkarılır ya da Valve'ın sunucularından indirilir.")),
 			(T("Açık kaynak"), string.Join("\n",
 				Tf("Kaynak kodu: {0} (MIT)", "github.com/enes-topcam/kumes-desktop"),
 				"SteamKit2 (LGPL-2.1) · ValveResourceFormat (MIT) · Silk.NET (MIT) · Vortice (MIT) · QRCoder (MIT)")),

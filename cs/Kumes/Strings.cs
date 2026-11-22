@@ -63,7 +63,8 @@ static class Strings
 		["Tavuk bilgileri alınıyor…"] = "Getting chicken info…",
 		["Birkaç saniye sürer."] = "This takes a few seconds.",
 		["Birazdan güncellenecek"] = "Updating soon",
-		["CS2 açık; kapanınca tavuk bilgisi alınacak."] = "CS2 is open. Chicken info will be fetched when it closes.",
+		["CS2 açık"] = "CS2 is open",
+		["CS2 açık olduğu için tavuk bilgisi alınamıyor. CS2'yi kapatınca kendiliğinden güncellenir."] = "Chicken info can't be fetched while CS2 is open. It updates by itself when you close CS2.",
 		["Tekrar dene"] = "Try again",
 		["Tavuk bilgisi alınamadı"] = "Couldn't get chicken info",
 		["Bağlantını kontrol edip yeniden dene."] = "Check your connection and try again.",
@@ -124,8 +125,8 @@ static class Strings
 		["• Erişimi tamamen kaldırmak için Steam mobil uygulamasında Steam Guard → yetkili cihazlar listesinden \"Kümes Masaüstü\"nü kaldır."] =
 			"• To remove its access completely, open Steam Guard in the Steam mobile app and remove \"Kümes Masaüstü\" from your authorized devices.",
 		["Bağımsızlık"] = "Not affiliated",
-		["Kümes, Valve Corporation ve Steam ile bağlantılı değildir, onlar tarafından onaylanmamıştır. Counter-Strike 2, CS2 ve Steam, Valve Corporation'ın ticari markalarıdır. CS2 dosyaları uygulamayla dağıtılmaz. Bilgisayarındaki CS2'den çıkarılır ya da kendi Steam hesabınla Valve'ın sunucularından indirilir."] =
-			"Kümes is not affiliated with or endorsed by Valve Corporation or Steam. Counter-Strike 2, CS2 and Steam are trademarks of Valve Corporation. CS2 files are not shipped with the app. They are extracted from the CS2 on your PC or downloaded from Valve's servers with your own Steam account.",
+		["Kümes, Valve Corporation ve Steam ile bağlantılı değildir, onlar tarafından onaylanmamıştır. Counter-Strike 2, CS2 ve Steam, Valve Corporation'ın ticari markalarıdır. CS2 dosyaları uygulamayla dağıtılmaz. Bilgisayarındaki CS2'den çıkarılır ya da Valve'ın sunucularından indirilir."] =
+			"Kümes is not affiliated with or endorsed by Valve Corporation or Steam. Counter-Strike 2, CS2 and Steam are trademarks of Valve Corporation. CS2 files are not shipped with the app. They are extracted from the CS2 on your PC or downloaded from Valve's servers.",
 		["Açık kaynak"] = "Open source",
 		["Kaynak kodu: {0} (MIT)"] = "Source code: {0} (MIT)",
 		["Kümes'i tamamen kapat"] = "Quit Kümes",
@@ -202,7 +203,6 @@ static class Strings
 		["Yere konma"] = "Landing", ["Tepki 1"] = "Reaction 1", ["Tepki 2"] = "Reaction 2",
 
 		// ---- CS2 modelleri ----
-		["Tavuğun görünmesi için CS2 kurulu olmalı ya da Steam'e giriş yapılmalı"] = "To show the chicken, install CS2 or sign in to Steam",
 		["CS2 tavuk dosyaları indiriliyor…"] = "Downloading CS2 chicken files…",
 		["CS2 modelleri hazırlanıyor…"] = "Preparing CS2 models…",
 		["CS2 modelleri çıkarılıyor ({0}/{1})…"] = "Extracting CS2 models ({0}/{1})…",
@@ -217,7 +217,7 @@ static class Strings
 		["Tavuğun hazır"] = "Your chicken is ready",
 		["İndirme tamamlanamadı"] = "Download didn't finish",
 		["CS2 kurulu olmadığı için tavuğun modeli ve renkleri"] = "CS2 isn't installed, so your chicken's model and colors",
-		["Steam hesabınla Valve'dan indiriliyor. Sadece bir kere iner."] = "are downloaded from Valve with your Steam account. Only once.",
+		["Valve'ın sunucusundan indiriliyor. Sadece bir kere iner."] = "are downloaded from Valve's servers. Only once.",
 		["Adım {0}/4 · {1}"] = "Step {0}/4 · {1}",
 		["Modeller"] = "Models",
 		["Animasyonlar ve iskelet"] = "Animations and skeleton",

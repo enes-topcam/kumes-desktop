@@ -19,14 +19,28 @@ static partial class AssetManager
 	static string DownloadDir => Path.Combine(Store.DataDir, "cs2-download"); // indirilen ham CS2 dosyaları (iş bitince silinir)
 	static string DownloadCache => Path.Combine(Store.DataDir, "cs2-cache");  // CS2 dosya dizini önbelleği (her seferinde inmesin)
 
-	// Hesapla indir ve hazırla (arka planda çağır). stage: 1-4 indirme adımı, 5 hazırlanıyor; bytes: inen parça boyu.
-	public static void ExtractFromSteam(SteamService steam, Action<string> progress, Action<int>? stage, Action<long>? bytes, CancellationToken ct)
+	// İndir ve hazırla (arka planda çağır). Önce anonim Steam girişiyle (hesap gerekmez; "Giriş yapmadan dene" de çalışsın);
+	// Valve anonim erişimi kapatırsa ve giriş yapılmış hesap varsa (account) onunla. stage: 1-4 indirme adımı,
+	// 5 hazırlanıyor; bytes: inen parça boyu.
+	public static void ExtractFromSteam(SteamService anon, SteamService? account, Action<string> progress, Action<int>? stage, Action<long>? bytes, CancellationToken ct)
 	{
+		bool anonymous = true;
 		async Task Fetch(IReadOnlyList<string> paths)
 		{
 			for (int attempt = 1; ; attempt++)
 			{
-				try { await steam.DownloadCs2FilesAsync(paths, DownloadDir, DownloadCache, ct, bytes); return; }
+				try
+				{
+					await (anonymous ? anon : account!).DownloadCs2FilesAsync(paths, DownloadDir, DownloadCache, ct, bytes, anonymous);
+					return;
+				}
+				catch (SteamException e) when (anonymous && account != null && e.Code is "NOT_FOUND" or "STEAM_ERROR")
+				{
+					Log.Write($"anonim indirme olmadı ({e.Message}), Steam hesabıyla denenecek");
+					anonymous = false;
+					attempt = 0;
+					continue;
+				}
 				catch (SteamException e) when (e.Code != "NEED_LOGIN" && attempt < 4)
 				{
 					Log.Write($"CS2 indirme denemesi {attempt} olmadı ({e.Message}), tekrar denenecek");

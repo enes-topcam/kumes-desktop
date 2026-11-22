@@ -18,10 +18,12 @@ public partial class SteamService
 	// vpkPaths: pak01 içindeki yollar (ör. "panorama/images/econ/pets/chicken_feed_bag_2_png.vtex_c").
 	// outDir altına aynı yollarla yazılır. cacheDir: dizin ve manifest önbelleği (her seferinde 7 MB inmesin).
 	// onBytes: her parça inince indirilen bayt (arka plan iş parçacığından; masaüstündeki indirme penceresi için)
+	// anonymous: hesapsız (anonim) Steam girişi. CS2'nin içerik deposu (2347770) anonim de açılıyor (denendi, 22 Kasım
+	// 2026); masaüstü önce bunu dener, giriş gerekmez. Mobil hesapla indirir.
 	public async Task<Cs2DownloadReport> DownloadCs2FilesAsync(IReadOnlyList<string> vpkPaths, string outDir, string cacheDir, CancellationToken ct,
-		Action<long>? onBytes = null)
+		Action<long>? onBytes = null, bool anonymous = false)
 	{
-		var saved = store.Load() ?? throw new SteamException("NEED_LOGIN", "Steam girişi gerekiyor.");
+		var saved = anonymous ? null : store.Load() ?? throw new SteamException("NEED_LOGIN", Lang.T("Steam girişi gerekiyor."));
 		using var conn = new Connection();
 		var user = conn.Client.GetHandler<SteamUser>()!;
 		var loggedOn = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -29,12 +31,13 @@ public partial class SteamService
 		{
 			if (cb.Result == EResult.OK) loggedOn.TrySetResult();
 			else loggedOn.TrySetException(new SteamException(cb.Result is EResult.InvalidPassword or EResult.AccessDenied or EResult.Expired or EResult.Revoked
-				? "NEED_LOGIN" : "STEAM_ERROR", $"Steam girişi olmadı: {cb.Result}"));
+				? "NEED_LOGIN" : "STEAM_ERROR", Lang.Tf("Steam girişi olmadı: {0}", cb.Result)));
 		});
-		conn.OnDisconnected = () => loggedOn.TrySetException(new SteamException("STEAM_ERROR", "Steam bağlantısı koptu."));
+		conn.OnDisconnected = () => loggedOn.TrySetException(new SteamException("STEAM_ERROR", Lang.T("Steam bağlantısı koptu.")));
 
 		await conn.ConnectAsync(ct);
-		user.LogOn(new SteamUser.LogOnDetails
+		if (saved == null) user.LogOnAnonymous();
+		else user.LogOn(new SteamUser.LogOnDetails
 		{
 			Username = saved.AccountName,
 			AccessToken = saved.RefreshToken,
@@ -117,7 +120,7 @@ public partial class SteamService
 
 			servers = (await content.GetServersForSteamPipe()).Where(s => s.Type is "SteamCache" or "CDN")
 				.OrderBy(s => s.WeightedLoad).ToList();
-			if (servers.Count == 0) throw new SteamException("STEAM_ERROR", "Steam içerik sunucusu bulunamadı.");
+			if (servers.Count == 0) throw new SteamException("STEAM_ERROR", Lang.T("Steam içerik sunucusu bulunamadı."));
 
 			foreach (var d in depots)
 			{
@@ -134,7 +137,7 @@ public partial class SteamService
 				Log.Write($"CS2 içerik deposu: {d.Id}, manifest {gid}, {manifest.Files!.Count} dosya");
 				return;
 			}
-			throw new SteamException("NOT_FOUND", "CS2 dosyaları Steam deposunda bulunamadı.");
+			throw new SteamException("NOT_FOUND", Lang.T("CS2 dosyaları Steam deposunda bulunamadı."));
 		}
 
 		uint KnownDepot()
@@ -167,7 +170,7 @@ public partial class SteamService
 				}
 				catch (Exception e) when (e is not OperationCanceledException) { last = e; }
 			}
-			throw new SteamException("STEAM_ERROR", $"Manifest indirilemedi: {last?.Message}");
+			throw new SteamException("STEAM_ERROR", Lang.Tf("Manifest indirilemedi: {0}", last?.Message));
 		}
 
 		// pak01_dir.vpk dizini: hangi dosya hangi arşivde, nerede (önbellekte manifest numarasıyla)
@@ -188,7 +191,7 @@ public partial class SteamService
 				await File.WriteAllBytesAsync(cache, head, ct);
 			}
 			if (BitConverter.ToUInt32(head, 0) != 0x55AA1234 || BitConverter.ToUInt32(head, 4) != 2)
-				throw new SteamException("PARSE_ERROR", "CS2 dosya dizini okunamadı (beklenmeyen VPK biçimi).");
+				throw new SteamException("PARSE_ERROR", Lang.T("CS2 dosya dizini okunamadı (beklenmeyen VPK biçimi)."));
 			VpkDataStart = 28 + BitConverter.ToUInt32(head, 8);
 			return ParseTree(head);
 		}
@@ -233,7 +236,7 @@ public partial class SteamService
 		// Bir dosyanın [offset, offset+dest.Length) aralığını, onu kapsayan parçaları indirip doldurur
 		public async Task ReadAsync(string file, ulong offset, Memory<byte> dest, CancellationToken ct)
 		{
-			if (!files.TryGetValue(file, out var f)) throw new SteamException("NOT_FOUND", $"Depoda yok: {file}");
+			if (!files.TryGetValue(file, out var f)) throw new SteamException("NOT_FOUND", Lang.Tf("Depoda yok: {0}", file));
 			ulong end = offset + (ulong)dest.Length;
 			foreach (var c in f.Chunks.OrderBy(c => c.Offset))
 			{
@@ -262,7 +265,7 @@ public partial class SteamService
 				}
 				catch (Exception e) when (e is not OperationCanceledException) { last = e; }
 			}
-			throw new SteamException("STEAM_ERROR", $"Dosya parçası indirilemedi: {last?.Message}");
+			throw new SteamException("STEAM_ERROR", Lang.Tf("Dosya parçası indirilemedi: {0}", last?.Message));
 		}
 	}
 }

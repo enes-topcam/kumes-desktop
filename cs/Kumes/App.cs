@@ -292,6 +292,11 @@ sealed unsafe class App
 		if (isRunning)
 		{
 			fetchCts?.Cancel(); // Steam aynı anda iki oyun oturumuna izin vermiyor
+			if (first)
+			{
+				if (AnyLoggedIn) Refresh("startup"); // CS2 açık: güncellenmez ama "CS2 açık" diye söylenir
+				else if (accounts.Count == 0) OpenLogin(); // ilk açılış: CS2 açık olsa da giriş penceresi gelsin
+			}
 			UpdateTray();
 		}
 		else if (first)
@@ -314,8 +319,15 @@ sealed unsafe class App
 	void Refresh(string reason, DesktopAccount? only = null)
 	{
 		if (fetching) return;
-		if (cs2Running) { UpdateTray(); return; }
 		var list = (only != null ? [only] : accounts).Where(a => a.LoggedIn && !a.IsDemo).ToList();
+		if (cs2Running)
+		{
+			// Steam aynı hesapta iki oyun oturumuna izin vermiyor: CS2 kapanınca (OnCs2) kendiliğinden güncellenir
+			Log.Write($"güncelleme ertelendi ({reason}): CS2 açık");
+			foreach (var a in list) SetState(a, "cs2", T("CS2 açık olduğu için tavuk bilgisi alınamıyor. CS2'yi kapatınca kendiliğinden güncellenir."));
+			UpdateTray();
+			return;
+		}
 		if (list.Count == 0) { UpdateTray(); return; }
 		fetching = true;
 		foreach (var a in list) SetState(a, "fetching", T("Güncelleniyor…"));
@@ -456,6 +468,7 @@ sealed unsafe class App
 		if (login != null) { loginCts?.Cancel(); login.Dispose(); login = null; }
 		Select(d);
 		OpenPanel();
+		if (AssetManager.LoadOwn() == null) StartExtract(); // CS2 yoksa ve önceki indirme olmadıysa yeniden dene
 	}
 
 	// Demo kapatıldı (Ayarlar) ya da gerçek hesapla giriş yapıldı
@@ -576,6 +589,7 @@ sealed unsafe class App
 		}
 		Select(a);
 		Refresh("login", a);
+		if (AssetManager.LoadOwn() == null) StartExtract(); // önceki indirme olmadıysa şimdi (hesapla da denenebilir)
 	}
 
 	// Dil: ayarda seçilmişse o, değilse Windows'un dili (Türkçe değilse İngilizce)
@@ -866,21 +880,18 @@ sealed unsafe class App
 	// Giriş yoksa (sadece "Giriş yapmadan dene") tavuk çizilemez; giriş yapılıp ilk güncelleme bitince başlar.
 	void StartDownload()
 	{
-		if (extractStarted || fetching) return; // güncelleme bitince yeniden denenir
-		if (accounts.FirstOrDefault(x => x.LoggedIn && !x.IsDemo) is not { } a)
-		{
-			if (extracting == null) Log.Write("CS2 kurulu değil: Steam'e giriş yapılınca tavuk dosyaları indirilecek");
-			extracting = T("Tavuğun görünmesi için CS2 kurulu olmalı ya da Steam'e giriş yapılmalı");
-			UpdateTray();
-			return;
-		}
+		// Tavuk güncellemesiyle aynı anda çalışabilir: indirme ayrı Steam oturum kimliğiyle bağlanır (Cs2Download)
+		if (extractStarted) return;
+		// hesap gerekmez (anonim Steam girişi); giriş yapılmış hesap varsa sadece yedek olarak kullanılır
+		var account = accounts.FirstOrDefault(x => x.LoggedIn && !x.IsDemo)?.Steam;
+		var anon = new SteamService(new MemorySessionStore(), DesktopAccount.DeviceName, SteamService.DesktopLoginId);
 		extractStarted = true;
 		extracting = T("CS2 tavuk dosyaları indiriliyor…");
 		UpdateTray();
-		Log.Write("CS2 kurulu değil: tavuk dosyaları Steam hesabıyla indiriliyor");
+		Log.Write("CS2 kurulu değil: tavuk dosyaları Valve'dan indiriliyor (anonim)");
 		OpenDownloadWindow();
 		var sw = Stopwatch.StartNew();
-		Task.Run(() => AssetManager.ExtractFromSteam(a.Steam,
+		Task.Run(() => AssetManager.ExtractFromSteam(anon, account,
 				t => msg.Post(() => { extracting = t; UpdateTray(); }),
 				n => msg.Post(() => download?.SetStep(n)),
 				b => msg.Post(() => download?.AddBytes(b)),
