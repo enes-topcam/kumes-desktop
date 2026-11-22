@@ -29,8 +29,9 @@ sealed unsafe class DownloadWindow : WindowBase
 	long bytes;
 	bool done;
 	string? error;
+	bool ask;          // indirmeden önce izin soruluyor (İndir / Şimdi değil)
 
-	public Action? Closed, Retry;
+	public Action? Closed, Retry, Accept;
 	public Action<bool>? Moving;
 
 	public DownloadWindow()
@@ -43,7 +44,8 @@ sealed unsafe class DownloadWindow : WindowBase
 		AdjustWindowRectEx(&r, Style, false, 0);
 		var wa = GetWorkArea();
 		int w = r.Right - r.Left, h = r.Bottom - r.Top;
-		Create(0, "KumesDownload", "Kümes", Style, wa.Left + (wa.Right - wa.Left - w) / 2, wa.Top + (wa.Bottom - wa.Top - h) / 2, w, h);
+		// en üstte: uygulamanın diğer pencerelerinin (ve başka uygulamaların) arkasında kalmasın
+		Create(WS_EX_TOPMOST, "KumesDownload", "Kümes", Style, wa.Left + (wa.Right - wa.Left - w) / 2, wa.Top + (wa.Bottom - wa.Top - h) / 2, w, h);
 		Theme.ApplyTitleBar(Hwnd);
 
 		var screen = GetDC(0);
@@ -65,13 +67,14 @@ sealed unsafe class DownloadWindow : WindowBase
 		SetForegroundWindow(Hwnd);
 	}
 
-	public void SetStep(int n) { step = n; error = null; Paint(); }
+	public void SetAsk() { ask = true; error = null; Paint(); }
+	public void SetStep(int n) { step = n; error = null; ask = false; Paint(); }
 	public void AddBytes(long n) { bytes += n; Paint(); }
 	public void SetDone() { done = true; error = null; Paint(); }
 	public void SetFailed(string message) { error = message; Paint(); }
 
 	// Yeniden denemeye başlarken (Tekrar dene)
-	public void Restart() { step = 0; bytes = 0; done = false; error = null; Paint(); }
+	public void Restart() { step = 0; bytes = 0; done = false; error = null; ask = false; Paint(); }
 
 	static string Mb(long b) => (b / 1048576.0).ToString("0.0", Lang.English ? CultureInfo.InvariantCulture : CultureInfo.GetCultureInfo("tr-TR"));
 
@@ -83,6 +86,7 @@ sealed unsafe class DownloadWindow : WindowBase
 		surf.Begin();
 		surf.FillRect(0, 0, cw, ch, Theme.Bg);
 		float pad = 24 * s, y = 20 * s;
+		if (ask) { PaintAsk(g, pad, y); return; }
 		string title = done ? T("Tavuğun hazır") : error != null ? T("İndirme tamamlanamadı") : T("Tavuk dosyaları indiriliyor");
 		surf.Text(title, pad, y, g.Font(20 * s, 700, Theme.Serif), Theme.Ink);
 		surf.FillRect(pad + 1 * s, y + 34 * s, 28 * s, 3 * s, done ? Theme.Leaf : error != null ? Theme.Danger : Theme.Straw);
@@ -129,6 +133,27 @@ sealed unsafe class DownloadWindow : WindowBase
 		{
 			surf.Text(T("Bu pencereyi kapatabilirsin, indirme arka planda sürer."), pad, by + 10 * s, small, Theme.Muted);
 		}
+		surf.End();
+		surf.CopyTo(bits, cw * 4);
+		InvalidateRect(Hwnd, null, false);
+	}
+
+	// İzin: ne inecek, ne kadar, nereden; İndir'e basılınca aynı pencerede indirme başlar
+	void PaintAsk(Gfx2D g, float pad, float y)
+	{
+		surf.Text(T("Tavuk modeli indirilsin mi?"), pad, y, g.Font(20 * s, 700, Theme.Serif), Theme.Ink);
+		surf.FillRect(pad + 1 * s, y + 34 * s, 28 * s, 3 * s, Theme.Straw);
+		var lead = g.Font(13 * s, 400, Theme.Sans);
+		y += 46 * s;
+		surf.Text(T("CS2 kurulu olmadığı için tavuğun modeli ve renkleri"), pad, y, lead, Theme.Muted);
+		surf.Text(T("Valve'ın sunucusundan indirilmeli."), pad, y + 18 * s, lead, Theme.Muted);
+		y += 54 * s;
+		var info = g.Font(13.5f * s, 600, Theme.Sans);
+		surf.Text(Tf("Yaklaşık {0} MB, sadece bir kere iner.", ExpectedBytes / 1048576), pad, y, info, Theme.Ink);
+		surf.Text(T("Steam hesabı gerekmez."), pad, y + 22 * s, g.Font(12.5f * s, 400, Theme.Sans), Theme.Muted);
+		float by = ch - 52 * s;
+		Button("accept", T("İndir"), pad, by, 150 * s, 36 * s, true);
+		Button("close", T("Şimdi değil"), pad + 162 * s, by, 130 * s, 36 * s, false);
 		surf.End();
 		surf.CopyTo(bits, cw * 4);
 		InvalidateRect(Hwnd, null, false);
@@ -191,6 +216,7 @@ sealed unsafe class DownloadWindow : WindowBase
 				switch (HitAt(lParam))
 				{
 					case "retry": Retry?.Invoke(); break;
+					case "accept": Accept?.Invoke(); break;
 					case "close": PostMessageW(Hwnd, WM_CLOSE, 0, 0); break;
 				}
 				return 0;

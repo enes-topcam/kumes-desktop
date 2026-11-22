@@ -34,7 +34,9 @@ sealed record MainModel(
 	Settings Settings,
 	bool Autostart,
 	string? Extracting,
-	string Version);
+	string Version,
+	bool NoCs2,  // CS2 kurulu değil: modeller çıkarılmaz, Valve'dan indirilir
+	bool ModelReady);
 
 [StructLayout(LayoutKind.Sequential)]
 struct MINMAXINFO { public POINT Reserved, MaxSize, MaxPosition, MinTrackSize, MaxTrackSize; }
@@ -359,7 +361,8 @@ sealed unsafe class MainWindow : WindowBase
 			"demo" => (T("Örnek tavuk · kendi tavuğun için giriş yap"), GInfo, Muted),
 			"fetching" => (T("Güncelleniyor…"), GRefresh, Muted),
 			"need-login" => (T("Tekrar giriş gerekli"), GAlert, Error),
-			"cs2" => (ago != null ? Tf("CS2 açık · son güncelleme {0}", ago) : T("CS2 açık, kapanınca güncellenecek"), GInfo, Muted),
+			"cs2" => (T("CS2 açıkken güncellenemiyor · kapatınca güncellenir"), GInfo, Muted),
+			"playing" => (T("Steam'de oyun açık · oyundan çıkıp Güncelle'ye bas"), GAlert, Error),
 			"waiting" => (a.Message, GInfo, Muted),
 			"error" => (ago != null ? Tf("Güncellenemedi · son güncelleme {0}", ago) : T("Güncellenemedi"), GAlert, Error),
 			_ => (ago == null ? T("Henüz güncellenmedi") : Fmt.IsJustNow(a.Pet!.FetchedAt) ? T("Az önce güncellendi") : Tf("{0} güncellendi", ago), GCheck, Positive),
@@ -433,7 +436,7 @@ sealed unsafe class MainWindow : WindowBase
 		var (text, glyph, gc) = SyncText(a);
 		float sy = syncY + syncH / 2;
 		Glyph(glyph, cx + 12, sy, 18, gc);
-		S.Text(text, cx + 34, sy - 10, F(14), a.State is "error" or "need-login" ? Error : Muted);
+		S.Text(text, cx + 34, sy - 10, F(14), a.State is "error" or "need-login" or "playing" ? Error : Muted);
 		if (a.State == "need-login") Button(cr - 150, sy - 21, 150, 42, GSignOut, T("Giriş yap"), "login");
 		else if (a.State == "demo") Button(cr - 150, sy - 21, 150, 42, "", T("Giriş yap"), "login", primary: true);
 		else Button(cr - 140, sy - 21, 140, 42, GRefresh, T("Güncelle"), "refresh:" + a.Id, enabled: !model.Fetching);
@@ -505,7 +508,8 @@ sealed unsafe class MainWindow : WindowBase
 		{
 			if (a.State == "need-login") return y + Message(y, T("Tekrar giriş gerekli"), Tf("{0} hesabının Steam oturumu sona erdi.", a.Name), T("Giriş yap"), "login");
 			if (a.State == "fetching" || a.State == "idle") return y + Message(y, T("Tavuk bilgileri alınıyor…"), T("Birkaç saniye sürer."));
-			if (a.State == "cs2") return y + Message(y, T("CS2 açık"), T("CS2 açık olduğu için tavuk bilgisi alınamıyor. CS2'yi kapatınca kendiliğinden güncellenir."), T("Tekrar dene"), "refresh:" + a.Id);
+			if (a.State == "cs2") return y + Message(y, T("CS2 açık"), T("CS2 açıkken tavuk bilgisi alınamıyor. CS2'yi kapatınca kendiliğinden güncellenir."), T("Tekrar dene"), "refresh:" + a.Id);
+			if (a.State == "playing") return y + Message(y, T("Steam'de oyun açık"), a.Message, T("Güncelle"), "refresh:" + a.Id);
 			if (a.State == "waiting") return y + Message(y, T("Birazdan güncellenecek"), a.Message.Length > 0 ? a.Message : T("Birkaç saniye sürer."), T("Tekrar dene"), "refresh:" + a.Id);
 			return y + Message(y, T("Tavuk bilgisi alınamadı"), a.Message.Length > 0 ? a.Message : T("Bağlantını kontrol edip yeniden dene."), T("Tekrar dene"), "refresh:" + a.Id);
 		}
@@ -660,16 +664,18 @@ sealed unsafe class MainWindow : WindowBase
 			(T("Şimdi güncelle"), model.Fetching ? T("Güncelleniyor…") : last is { } t ? Tf("Son senkronizasyon: {0}", Fmt.When(t)) : T("Henüz güncellenmedi"), GRefresh, "refresh"),
 			(T("Veri klasörünü aç"), "%APPDATA%\\KumesCS", GFolder, "openfolder"),
 			(T("Kayıt dosyasını aç"), "kumes.log", GDoc, "openlog"),
-			(T("CS2 modellerini yeniden çıkar"), model.Extracting ?? T("Tavuk modeli ve renkleri baştan hazırlanır"), GBox, "reextract"),
+			model.NoCs2
+				? (T("Tavuk modelini indir"), model.Extracting ?? (model.ModelReady ? T("İndirildi, bilgisayarında hazır") : T("Modeli ve renkleri Valve'dan indirir (~110 MB)")), GBox, "reextract")
+				: (T("CS2 modellerini yeniden çıkar"), model.Extracting ?? T("Tavuk modeli ve renkleri baştan hazırlanır"), GBox, "reextract"),
 		];
 		y = Group(y, data.Length, 60, (i, ry) =>
 		{
 			var r = data[i];
-			bool enabled = !(r.Id == "refresh" && model.Fetching) && !(r.Id == "reextract" && model.Extracting != null);
+			bool enabled = !(r.Id == "refresh" && model.Fetching) && !(r.Id == "reextract" && (model.Extracting != null || model.NoCs2 && model.ModelReady));
 			Glyph(r.G, X0 + 34, ry + 30, 15, Muted);
 			S.Text(r.L, X0 + 60, ry + 11, F(14.5f, 600), enabled && Hot(r.Id) ? Lavender : Text);
 			S.Text(r.Dsc, X0 + 60, ry + 32, F(12.5f), Muted);
-			Glyph(GChevron, X0 + CW - 24, ry + 30, 11, Faint);
+			if (enabled) Glyph(GChevron, X0 + CW - 24, ry + 30, 11, Faint);
 			Item(X0, ry, CW, 60, r.Id, enabled);
 		});
 

@@ -129,8 +129,8 @@ public partial class SteamService(ISessionStore store, string deviceName, uint l
 			blocked = true;
 			Log.Write($"hesap başka bir yerde oyunda (uygulama {cb.PlayingAppID}), CS2'ye girilmedi");
 			result.TrySetException(new SteamException("PLAYING_ELSEWHERE", cb.PlayingAppID == Cs2AppId
-				? Lang.T("CS2 başka bir yerde açık; kapanınca güncellenecek.")
-				: Lang.T("Steam'de başka bir oyun açık; kapanınca güncellenecek.")));
+				? Lang.T("CS2 başka bir bilgisayarda açık, güncellenemiyor. Oyundan çıkıp tekrar güncelle.")
+				: Lang.T("Steam hesabında bir oyun açık, güncellenemiyor. Oyundan çıkıp tekrar güncelle.")));
 		});
 
 		conn.Manager.Subscribe<SteamUser.AccountInfoCallback>(cb => persona = cb.PersonaName);

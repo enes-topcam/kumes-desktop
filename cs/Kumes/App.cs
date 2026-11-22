@@ -32,6 +32,9 @@ sealed unsafe class App
 	AssetSet? assets;
 	string? extracting;
 	bool extractStarted;
+	bool noCs2 = NeedsDownload; // Ayarlar'daki satır "indir" der (açılışta bir kere bakılır)
+	bool ownReady;  // tavuk modeli hazır (indirildi ya da çıkarıldı): Ayarlar'daki "indir" satırı kapanır
+	bool downloadAsked; // CS2'siz indirme için bu açılışta izin soruldu ("Şimdi değil" denince tekrar sorulmaz, Ayarlar'dan başlatılır)
 	DateTime nextWatch, nextHousekeeping, nextMinute, nextPeriodic;
 	DateTime afterCloseAt = DateTime.MaxValue, closeLoginAt = DateTime.MaxValue, closeDownloadAt = DateTime.MaxValue, trimAt = DateTime.MaxValue;
 	DownloadWindow? download; // CS2'siz indirme penceresi
@@ -269,7 +272,7 @@ sealed unsafe class App
 		{
 			"fetching" => T("Güncelleniyor…"),
 			"cs2" => a.Message.Length > 0 ? a.Message : T("CS2 açık, kapatınca güncellenecek"),
-			"waiting" or "error" => a.Message,
+			"waiting" or "error" or "playing" => a.Message,
 			"need-login" => T("Steam girişi gerekiyor (sağ tık)"),
 			_ => "",
 		};
@@ -324,7 +327,7 @@ sealed unsafe class App
 		{
 			// Steam aynı hesapta iki oyun oturumuna izin vermiyor: CS2 kapanınca (OnCs2) kendiliğinden güncellenir
 			Log.Write($"güncelleme ertelendi ({reason}): CS2 açık");
-			foreach (var a in list) SetState(a, "cs2", T("CS2 açık olduğu için tavuk bilgisi alınamıyor. CS2'yi kapatınca kendiliğinden güncellenir."));
+			foreach (var a in list) SetState(a, "cs2", T("CS2 açıkken tavuk bilgisi alınamıyor. CS2'yi kapatınca kendiliğinden güncellenir."));
 			UpdateTray();
 			return;
 		}
@@ -360,7 +363,6 @@ sealed unsafe class App
 		}).ContinueWith(_ => msg.Post(() =>
 		{
 			fetching = false;
-			if (AssetManager.LoadOwn() == null) StartExtract(); // CS2 yoksa: giriş yapılmış hesapla indir
 			ApplyVisibility();
 			UpdateTray();
 			ScheduleTrim();
@@ -376,7 +378,8 @@ sealed unsafe class App
 				if (reason != "periodic" && !AnyLoggedIn) OpenLogin();
 				break;
 			case SteamException { Code: "PLAYING_ELSEWHERE" } se:
-				SetState(a, "cs2", se.Message);
+				// Steam hesabında (bu bilgisayarda ya da başka yerde) başka bir oyun açık: oyundan çıkınca elle güncellenir
+				SetState(a, "playing", se.Message);
 				break;
 			case OperationCanceledException or TaskCanceledException:
 				SetState(a, "cs2", T("CS2 açık, kapatınca güncellenecek")); // CS2 açıldığı için iptal edildi
@@ -637,7 +640,9 @@ sealed unsafe class App
 		settings,
 		IsAutostart(),
 		extracting,
-		Version);
+		Version,
+		noCs2,
+		ownReady);
 
 	// Tanıtım çekimi komutları (WM_DEMO; sadece --cekim): 1 tırman, 2 yürü (arg: +1/-1), 3 koy (arg: x px, sağa bakar),
 	// 4 numara, 5 tavuğu gizle/göster, 6 koy (sola bakar)
@@ -658,6 +663,7 @@ sealed unsafe class App
 
 	void OpenPanel()
 	{
+		RefreshOnOpen();
 		if (panel != null) { panel.ShowAndFocus(); return; }
 		var w = new MainWindow(PanelState());
 		panel = w;
@@ -672,6 +678,16 @@ sealed unsafe class App
 		w.Clicked = OnPanelClick;
 		w.SetIcon(windowIcon.Small, windowIcon.Big);
 		w.ShowAndFocus();
+	}
+
+	// Pencere her açıldığında (tepsiden, kısayoldan) tavuk bilgisi güncellenir; az önce güncellendiyse tekrar sorulmaz.
+	// İlk açılışta OnCs2 zaten günceller (CS2 açık mı bilinmeden başlanmaz).
+	void RefreshOnOpen()
+	{
+		if (!cs2Known || fetching || !AnyLoggedIn) return;
+		var oldest = accounts.Where(a => a.LoggedIn && !a.IsDemo).Min(a => a.Cache.Pet?.FetchedAt ?? DateTimeOffset.MinValue);
+		if (DateTimeOffset.UtcNow - oldest < TimeSpan.FromMinutes(1)) return;
+		Refresh("open");
 	}
 
 	void OnPanelClick(string id)
@@ -693,7 +709,7 @@ sealed unsafe class App
 			case "quit": running = false; break;
 			case "openfolder": OpenShell(Store.DataDir); break;
 			case "openlog": OpenShell(Store.File("kumes.log")); break;
-			case "reextract": StartExtract(); break;
+			case "reextract": StartExtract(confirmed: true); break;
 			case "lang":
 				settings.Language = Lang.English ? "tr" : "en";
 				Store.Save("settings.json", settings);
@@ -853,18 +869,24 @@ sealed unsafe class App
 		else Log.Write("CS2 modelleri henüz yok, çıkarılacak");
 
 		var own = AssetManager.LoadOwn();
-		if (own == null || AssetManager.Cs2Changed(own)) StartExtract();
+		ownReady = own != null;
+		// CS2 kurulu değilse ilk açılışta hemen inmez: önce giriş penceresi, sonra (giriş ya da "Giriş yapmadan dene") izin sorulur
+		if (own == null && accounts.Count > 0) StartExtract();
+		else if (own == null || AssetManager.Cs2Changed(own)) { if (!NeedsDownload) StartExtract(); }
 	}
 
-	void StartExtract()
+	// CS2 kurulu değil ya da Source2Viewer-CLI yok (kaynaktan derlenmiş, tools/vrf konmamış): dosyalar Valve'dan indirilir
+	static bool NeedsDownload => AssetManager.FindCs2Dir() == null || AssetManager.FindCli() == null;
+
+	// confirmed: kullanıcı zaten istedi (Ayarlar, Tekrar dene); değilse indirmeden önce izin sorulur
+	void StartExtract(bool confirmed = false)
 	{
 		if (extractStarted) return;
-		if (AssetManager.FindCs2Dir() == null) { StartDownload(); return; } // CS2 kurulu değil: hesapla indir
-		if (AssetManager.FindCli() == null)
+		if (NeedsDownload)
 		{
-			// Kaynaktan derlenmiş, tools/vrf konmamış: CS2 kurulu olsa da hesapla indir
-			if (!extractStarted && extracting == null) Log.Write("Source2Viewer-CLI bulunamadı (tools/vrf), tavuk dosyaları Steam hesabıyla indirilecek");
-			StartDownload();
+			if (AssetManager.FindCs2Dir() != null) Log.Write("Source2Viewer-CLI bulunamadı (tools/vrf), tavuk dosyaları Valve'dan indirilecek");
+			if (confirmed) StartDownload();
+			else AskDownload();
 			return;
 		}
 		extractStarted = true;
@@ -876,8 +898,26 @@ sealed unsafe class App
 			.ContinueWith(t => msg.Post(() => ExtractDone(t, sw)));
 	}
 
-	// CS2 kurulu değilse: tavuk dosyaları giriş yapılmış bir Steam hesabıyla Valve'dan indirilir (sadece gerekenler).
-	// Giriş yoksa (sadece "Giriş yapmadan dene") tavuk çizilemez; giriş yapılıp ilk güncelleme bitince başlar.
+	// İndirme penceresi izin sorarak açılır; "İndir"e basılınca aynı pencerede başlar
+	void AskDownload()
+	{
+		if (downloadAsked || filming) return;
+		downloadAsked = true;
+		Log.Write("CS2 kurulu değil: tavuk dosyalarını indirmek için izin soruluyor");
+		OpenDownloadWindow();
+		if (download is not { } w) return;
+		w.SetAsk();
+		var closed = w.Closed;
+		w.Closed = () =>
+		{
+			closed?.Invoke();
+			if (extractStarted || AssetManager.LoadOwn() != null) return;
+			Log.Write("tavuk dosyaları indirilmedi (Şimdi değil)");
+			tray.Notify(T("Tavuk modeli indirilmedi"), T("İstediğinde Ayarlar → Tavuk modelini indir."));
+		};
+	}
+
+	// CS2 kurulu değilse: tavuk dosyaları Valve'dan anonim Steam girişiyle indirilir (sadece gerekenler).
 	void StartDownload()
 	{
 		// Tavuk güncellemesiyle aynı anda çalışabilir: indirme ayrı Steam oturum kimliğiyle bağlanır (Cs2Download)
@@ -916,7 +956,8 @@ sealed unsafe class App
 			if (m) msg.BeginModal(); else msg.EndModal(); // pencere sürüklenirken tavuk donmasın
 		};
 		w.Closed = () => { if (download == w) download = null; };
-		w.Retry = () => msg.Post(StartExtract);
+		w.Retry = () => msg.Post(() => StartExtract(confirmed: true));
+		w.Accept = () => msg.Post(() => StartExtract(confirmed: true));
 		w.ShowAndFocus();
 	}
 
@@ -929,6 +970,7 @@ sealed unsafe class App
 			Log.Write($"CS2 modelleri hazır ({sw.Elapsed.TotalSeconds:F0} sn)");
 			if (download != null) { download.SetDone(); closeDownloadAt = DateTime.UtcNow.AddSeconds(3); }
 			assets = own;
+			ownReady = true;
 			collection = null; // koleksiyon resimleri yeni modellerle yeniden çizilsin
 			EnsureModel(force: true); // aynı klasöre yeniden çıkarıldı: yol değişmese de dosyalar yeni
 		}
