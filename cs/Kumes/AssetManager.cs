@@ -275,7 +275,7 @@ static partial class AssetManager
 	}
 
 	// Tüm modelleri ve renkleri çıkarır; ilerlemeyi progress ile bildirir. Ana iş parçacığında ÇAĞIRMA.
-	public static void Extract(Action<string> progress)
+	public static void Extract(Action<string> progress, Action<int, int>? stage = null)
 	{
 		var exe = FindCli() ?? throw new FileNotFoundException("Source2Viewer-CLI bulunamadı (tools/vrf).");
 		var cs2 = FindCs2Dir() ?? throw new DirectoryNotFoundException("CS2 kurulumu bulunamadı.");
@@ -289,6 +289,7 @@ static partial class AssetManager
 		foreach (var (breed, model) in Models)
 		{
 			progress(Tf("CS2 modelleri çıkarılıyor ({0}/{1})…", ++step, total));
+			stage?.Invoke(step, total);
 			RunCli(exe, "-i", vpk, "-f", model, "-o", Path.Combine(tmp, $"{breed}.glb"), "-d",
 				"--gltf_export_format", "glb", "--gltf_export_animations",
 				"--gltf_animation_list", string.Join(",", Animations), "--game", gameinfo);
@@ -305,6 +306,7 @@ static partial class AssetManager
 		foreach (var breed in Models.Keys)
 		{
 			progress(Tf("CS2 renkleri çıkarılıyor ({0}/{1})…", ++step, total));
+			stage?.Invoke(step, total);
 			foreach (var prefix in MaterialPrefix[breed])
 				RunCli(exe, "-i", vpk, "-f", $"materials/models/chicken/{prefix}", "-e", "vmat_c", "-o", tmp, "-d", "--game", gameinfo);
 		}

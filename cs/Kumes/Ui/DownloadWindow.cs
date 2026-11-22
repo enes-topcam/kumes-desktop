@@ -1,6 +1,7 @@
-// CS2 kurulu değilken tavuk dosyaları Valve'dan (anonim Steam girişiyle) indirilirken açılan pencere: hangi adımda olduğu, kaç MB indiği,
-// ilerleme çubuğu. Bitince "hazır" der ve App kapatır; hata olursa "Tekrar dene". Kapatılırsa indirme arka planda sürer.
-// CS2 kuruluysa (dosyalar kurulumdan çıkarılır, bir şey inmez) bu pencere hiç açılmaz. Görünüm giriş penceresiyle aynı.
+// Tavuk modeli hazırlanırken açılan pencere. CS2 kurulu değilse: önce izin sorar, sonra Valve'dan (anonim Steam girişiyle)
+// indirir; hangi adımda olduğu, kaç MB indiği, ilerleme çubuğu. CS2 kuruluysa (local): dosyalar kurulumdan çıkarılır, bir şey
+// inmez; adım ve çubuk gösterilir. Bitince "hazır" der ve App kapatır; hata olursa "Tekrar dene". Kapatılırsa arka planda sürer.
+// Görünüm giriş penceresiyle aynı.
 using System.Globalization;
 using Kumes.Native;
 using static Kumes.Native.Win32;
@@ -30,6 +31,9 @@ sealed unsafe class DownloadWindow : WindowBase
 	bool done;
 	string? error;
 	bool ask;          // indirmeden önce izin soruluyor (İndir / Şimdi değil)
+	bool local;        // CS2 kurulumundan çıkarılıyor (indirme yok)
+	string localText = "";
+	int localStep, localTotal;
 
 	public Action? Closed, Retry, Accept;
 	public Action<bool>? Moving;
@@ -68,13 +72,14 @@ sealed unsafe class DownloadWindow : WindowBase
 	}
 
 	public void SetAsk() { ask = true; error = null; Paint(); }
+	public void SetLocal(string text, int n, int total) { local = true; ask = false; error = null; localText = text; localStep = n; localTotal = total; Paint(); }
 	public void SetStep(int n) { step = n; error = null; ask = false; Paint(); }
 	public void AddBytes(long n) { bytes += n; Paint(); }
 	public void SetDone() { done = true; error = null; Paint(); }
 	public void SetFailed(string message) { error = message; Paint(); }
 
 	// Yeniden denemeye başlarken (Tekrar dene)
-	public void Restart() { step = 0; bytes = 0; done = false; error = null; ask = false; Paint(); }
+	public void Restart() { step = 0; bytes = 0; done = false; error = null; ask = false; local = false; localText = ""; localStep = 0; Paint(); }
 
 	static string Mb(long b) => (b / 1048576.0).ToString("0.0", Lang.English ? CultureInfo.InvariantCulture : CultureInfo.GetCultureInfo("tr-TR"));
 
@@ -87,19 +92,30 @@ sealed unsafe class DownloadWindow : WindowBase
 		surf.FillRect(0, 0, cw, ch, Theme.Bg);
 		float pad = 24 * s, y = 20 * s;
 		if (ask) { PaintAsk(g, pad, y); return; }
-		string title = done ? T("Tavuğun hazır") : error != null ? T("İndirme tamamlanamadı") : T("Tavuk dosyaları indiriliyor");
+		string title = done ? T("Tavuğun hazır")
+			: local ? (error != null ? T("Tavuk modeli hazırlanamadı") : T("Tavuk modeli hazırlanıyor"))
+			: error != null ? T("İndirme tamamlanamadı") : T("Tavuk dosyaları indiriliyor");
 		surf.Text(title, pad, y, g.Font(20 * s, 700, Theme.Serif), Theme.Ink);
 		surf.FillRect(pad + 1 * s, y + 34 * s, 28 * s, 3 * s, done ? Theme.Leaf : error != null ? Theme.Danger : Theme.Straw);
 
 		var lead = g.Font(13 * s, 400, Theme.Sans);
 		y += 46 * s;
-		surf.Text(T("CS2 kurulu olmadığı için tavuğun modeli ve renkleri"), pad, y, lead, Theme.Muted);
-		surf.Text(T("Valve'ın sunucusundan indiriliyor. Sadece bir kere iner."), pad, y + 18 * s, lead, Theme.Muted);
+		if (local)
+		{
+			surf.Text(T("Tavuğun modeli ve renkleri bilgisayarındaki CS2'den"), pad, y, lead, Theme.Muted);
+			surf.Text(T("çıkarılıyor. İnternetten bir şey inmez."), pad, y + 18 * s, lead, Theme.Muted);
+		}
+		else
+		{
+			surf.Text(T("CS2 kurulu olmadığı için tavuğun modeli ve renkleri"), pad, y, lead, Theme.Muted);
+			surf.Text(T("Valve'ın sunucusundan indiriliyor. Sadece bir kere iner."), pad, y + 18 * s, lead, Theme.Muted);
+		}
 
 		// adım
 		y += 54 * s;
 		var stepFont = g.Font(13.5f * s, 600, Theme.Sans);
 		string stepText = done ? T("Tamamlandı")
+			: local ? (localText.Length > 0 ? localText : T("CS2 dosyaları açılıyor…"))
 			: step is >= 1 and <= 4 ? Tf("Adım {0}/4 · {1}", step, T(Steps[step - 1]))
 			: step == 5 ? T("Dosyalar hazırlanıyor…")
 			: T("Steam'e bağlanılıyor…");
@@ -107,7 +123,7 @@ sealed unsafe class DownloadWindow : WindowBase
 
 		// çubuk + yüzde
 		y += 28 * s;
-		float frac = done ? 1 : Math.Min(0.98f, (float)bytes / ExpectedBytes);
+		float frac = done ? 1 : local ? (localTotal > 0 ? Math.Min(0.98f, (localStep - 0.5f) / localTotal) : 0) : Math.Min(0.98f, (float)bytes / ExpectedBytes);
 		var pctFont = g.Font(13 * s, 600, Theme.Sans);
 		string pct = Tf("%{0}", (int)Math.Round(frac * 100));
 		float pw = g.Measure(pct, pctFont).X;
@@ -119,7 +135,7 @@ sealed unsafe class DownloadWindow : WindowBase
 		// MB
 		y += 18 * s;
 		var small = g.Font(12.5f * s, 400, Theme.Sans);
-		surf.Text(Tf("{0} MB / yaklaşık {1} MB", Mb(bytes), ExpectedBytes / 1048576), pad, y, small, Theme.Muted);
+		surf.Text(local ? T("Sadece ilk açılışta, yaklaşık 1 dakika sürer.") : Tf("{0} MB / yaklaşık {1} MB", Mb(bytes), ExpectedBytes / 1048576), pad, y, small, Theme.Muted);
 
 		// alt: hata ve düğmeler ya da bilgi
 		float by = ch - 52 * s;
@@ -131,7 +147,7 @@ sealed unsafe class DownloadWindow : WindowBase
 		}
 		else if (!done)
 		{
-			surf.Text(T("Bu pencereyi kapatabilirsin, indirme arka planda sürer."), pad, by + 10 * s, small, Theme.Muted);
+			surf.Text(local ? T("Bu pencereyi kapatabilirsin, arka planda sürer.") : T("Bu pencereyi kapatabilirsin, indirme arka planda sürer."), pad, by + 10 * s, small, Theme.Muted);
 		}
 		surf.End();
 		surf.CopyTo(bits, cw * 4);

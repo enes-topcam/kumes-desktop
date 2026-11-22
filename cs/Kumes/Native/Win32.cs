@@ -141,7 +141,7 @@ static unsafe class Win32
 	public const byte AC_SRC_ALPHA = 1;
 	public const uint SPI_GETWORKAREA = 0x30;
 	public const uint TME_LEAVE = 2;
-	public const uint SWP_NOSIZE = 1, SWP_NOMOVE = 2, SWP_NOACTIVATE = 0x10;
+	public const uint SWP_NOSIZE = 1, SWP_NOMOVE = 2, SWP_NOZORDER = 4, SWP_NOACTIVATE = 0x10;
 	public static readonly nint HWND_TOPMOST = -1;
 	public const uint MF_STRING = 0, MF_GRAYED = 1, MF_SEPARATOR = 0x800;
 	public const uint TPM_RETURNCMD = 0x100, TPM_RIGHTBUTTON = 2, TPM_BOTTOMALIGN = 0x20;
@@ -175,6 +175,7 @@ static unsafe class Win32
 	[DllImport(U)] public static extern bool SetProcessDpiAwarenessContext(nint ctx);
 	[DllImport(U)] public static extern uint GetDpiForSystem();
 	[DllImport(U)] public static extern bool SetWindowPos(nint hwnd, nint after, int x, int y, int cx, int cy, uint flags);
+	[DllImport(U)] public static extern bool GetWindowRect(nint hwnd, out RECT r);
 	[DllImport(U)] public static extern bool TrackMouseEvent(TRACKMOUSEEVENT* tme);
 	[DllImport(U)] public static extern bool GetCursorPos(out POINT p);
 	[DllImport(U)] public static extern nint CreatePopupMenu();

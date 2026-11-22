@@ -516,6 +516,7 @@ sealed unsafe class App
 		w.Closed = () => { loginCts?.Cancel(); if (login == w) login = null; };
 		w.DemoRequested = () => msg.Post(StartDemo); // pencerenin kendi mesajı bitince kapansın
 		w.ShowAndFocus();
+		ArrangeWindows();
 
 		loginCts?.Cancel();
 		loginCts = new CancellationTokenSource();
@@ -893,8 +894,17 @@ sealed unsafe class App
 		extracting = T("CS2 modelleri hazırlanıyor…");
 		UpdateTray();
 		Log.Write("CS2 modelleri çıkarılıyor");
+		// İlk sefer (ya da Ayarlar'dan istendiyse) pencerede gösterilir: tavuk görünmeden önce ne olduğu belli olsun.
+		// CS2 güncellendiği için arka planda yeniden çıkarılırken eski model görünmeye devam eder, pencere açılmaz.
+		if (confirmed || AssetManager.LoadOwn() == null)
+		{
+			OpenDownloadWindow();
+			download?.SetLocal("", 0, 0);
+		}
 		var sw = Stopwatch.StartNew();
-		Task.Run(() => AssetManager.Extract(t => msg.Post(() => { extracting = t; UpdateTray(); })))
+		Task.Run(() => AssetManager.Extract(
+				t => msg.Post(() => { extracting = t; UpdateTray(); }),
+				(n, total) => msg.Post(() => download?.SetLocal(extracting ?? "", n, total))))
 			.ContinueWith(t => msg.Post(() => ExtractDone(t, sw)));
 	}
 
@@ -939,7 +949,23 @@ sealed unsafe class App
 			.ContinueWith(t => msg.Post(() => ExtractDone(t, sw, downloaded: true)));
 	}
 
-	// İndirme penceresi (sadece CS2'siz indirmede): adım, MB, ilerleme. Kapatılırsa indirme arka planda sürer.
+	// Giriş ve tavuk hazırlama pencereleri aynı anda açıksa yan yana dursun: hazırlama penceresi en üstte, QR'ın üstüne binmesin
+	void ArrangeWindows()
+	{
+		if (login == null || download == null) return;
+		GetWindowRect(login.Hwnd, out var l);
+		GetWindowRect(download.Hwnd, out var d);
+		var wa = GetWorkArea();
+		int lw = l.Right - l.Left, lh = l.Bottom - l.Top, dw = d.Right - d.Left, gap = (int)(16 * GetDpiForSystem() / 96f);
+		int total = lw + gap + dw;
+		if (total > wa.Right - wa.Left) return; // sığmıyorsa olduğu gibi kalsın
+		int x = wa.Left + (wa.Right - wa.Left - total) / 2, y = Math.Max(wa.Top, wa.Top + (wa.Bottom - wa.Top - lh) / 2);
+		const uint flags = SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE;
+		SetWindowPos(login.Hwnd, 0, x, y, 0, 0, flags);
+		SetWindowPos(download.Hwnd, 0, x + lw + gap, y, 0, 0, flags);
+	}
+
+	// Tavuk hazırlama penceresi: CS2'siz indirmede (izin, adım, MB) ve ilk sefer CS2'den çıkarırken (adım). Kapatılırsa arka planda sürer.
 	void OpenDownloadWindow()
 	{
 		closeDownloadAt = DateTime.MaxValue;
@@ -959,6 +985,7 @@ sealed unsafe class App
 		w.Retry = () => msg.Post(() => StartExtract(confirmed: true));
 		w.Accept = () => msg.Post(() => StartExtract(confirmed: true));
 		w.ShowAndFocus();
+		ArrangeWindows();
 	}
 
 	void ExtractDone(Task t, Stopwatch sw, bool downloaded = false)
@@ -983,6 +1010,7 @@ sealed unsafe class App
 				if (download != null) download.SetFailed(why);
 				else tray.Notify(T("Tavuk dosyaları indirilemedi"), why);
 			}
+			else download?.SetFailed(T("CS2 dosyaları okunamadı, tekrar dene."));
 		}
 		UpdateTray();
 		ScheduleTrim();

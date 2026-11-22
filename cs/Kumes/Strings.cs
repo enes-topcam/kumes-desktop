@@ -254,5 +254,13 @@ static class Strings
 		["CS2 açıkken güncellenemiyor · kapatınca güncellenir"] = "Can't update while CS2 is open · updates when it closes",
 		["Steam'de oyun açık · oyundan çıkıp Güncelle'ye bas"] = "A game is open on Steam · close it and press Update",
 		["Steam'de oyun açık"] = "A game is open on Steam",
+		["Tavuk modeli hazırlanıyor"] = "Preparing the chicken model",
+		["Tavuk modeli hazırlanamadı"] = "Couldn't prepare the chicken model",
+		["Tavuğun modeli ve renkleri bilgisayarındaki CS2'den"] = "Your chicken's model and colors are being extracted",
+		["çıkarılıyor. İnternetten bir şey inmez."] = "from CS2 on this PC. Nothing is downloaded.",
+		["CS2 dosyaları açılıyor…"] = "Opening CS2 files…",
+		["Sadece ilk açılışta, yaklaşık 1 dakika sürer."] = "Only on first launch, takes about a minute.",
+		["Bu pencereyi kapatabilirsin, arka planda sürer."] = "You can close this window, it continues in the background.",
+		["CS2 dosyaları okunamadı, tekrar dene."] = "Couldn't read CS2 files, try again.",
 	};
 }
