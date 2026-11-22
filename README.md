@@ -10,7 +10,7 @@ CS2'deki evcil tavuğun Windows masaüstünde, görev çubuğunun üstünde 3D o
 
 **[Kümes'in son sürümü (Windows, 64 bit)](https://github.com/enes-topcam/kumes-desktop/releases/latest)**
 
-1. `Kumes-x.y.z-win-x64.zip` dosyasını indir ve bir klasöre çıkar.
+1. `Kumes-x.y-win-x64.zip` dosyasını indir ve bir klasöre çıkar.
 2. `Kumes.exe`'yi çalıştır. .NET kurman gerekmez.
 3. Steam'e giriş yap ya da "Giriş yapmadan dene"ye tıkla.
 
@@ -62,7 +62,7 @@ CS2 kurulumundan model çıkarmak için [Source 2 Viewer](https://github.com/Val
 
 Kümes puts your CS2 pet chicken on your Windows desktop. It walks, pecks, sleeps and perches on your windows, and shows when its feed runs out.
 
-1. Download the [latest release](https://github.com/enes-topcam/kumes-desktop/releases/latest) (`Kumes-x.y.z-win-x64.zip`) and unzip it.
+1. Download the [latest release](https://github.com/enes-topcam/kumes-desktop/releases/latest) (`Kumes-x.y-win-x64.zip`) and unzip it.
 2. Run `Kumes.exe`. No .NET install needed. If Windows shows "unknown publisher", click "More info" → "Run anyway" (the exe isn't signed).
 3. Sign in to Steam (QR code or username + Steam Guard), or click "Try without signing in".
 
