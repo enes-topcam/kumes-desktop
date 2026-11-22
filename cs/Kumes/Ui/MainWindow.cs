@@ -681,7 +681,7 @@ sealed unsafe class MainWindow : WindowBase
 				T("• Steam'in verdiği oturum anahtarı bu bilgisayarda, Windows'un şifrelemesiyle durur."),
 				T("• Tavuk bilgilerin sadece bu bilgisayarda tutulur, hiçbir sunucuya gönderilmez."),
 				Tf("• Kümes, Steam'e ayrı bir cihaz olarak (\"{0}\") bağlanır ve birkaç saniye \"CS2 oynuyor\" görünür. Takas, satın alma, mesaj gibi bir şey yapmaz.", DesktopAccount.DeviceName),
-				T("• Erişimi tamamen kaldırmak için: Steam → Ayarlar → Güvenlik → Yetkili cihazlar."))),
+				T("• Erişimi tamamen kaldırmak için Steam mobil uygulamasında Steam Guard → yetkili cihazlar listesinden \"Kümes Masaüstü\"nü kaldır."))),
 			(T("Bağımsızlık"),
 				T("Kümes, Valve Corporation ve Steam ile bağlantılı değildir, onlar tarafından onaylanmamıştır. Counter-Strike 2, CS2 ve Steam, Valve Corporation'ın ticari markalarıdır. CS2 dosyaları uygulamayla dağıtılmaz. Bilgisayarındaki CS2'den çıkarılır ya da kendi Steam hesabınla Valve'ın sunucularından indirilir.")),
 			(T("Açık kaynak"), string.Join("\n",

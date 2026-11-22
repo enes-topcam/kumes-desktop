@@ -44,7 +44,7 @@ Pakette Valve'a ait hiçbir dosya yok. İlk açılışta model, renkler ve anima
 
 - Şifren yalnızca Steam'e gider, Kümes kaydetmez. Bu bilgisayarda sadece Steam'in verdiği oturum anahtarı, Windows'un kendi şifrelemesiyle saklanır.
 - Kümes, Steam'e ayrı bir cihaz olarak bağlanır. Birkaç saniye "CS2 oynuyor" görünür ve envanterindeki tavuğu okur. Takas, satın alma, mesaj gibi hiçbir şey yapmaz. CS2'de oyundaysan araya girmez.
-- Tamamen kaldırmak için: Steam → Ayarlar → Güvenlik → Yetkili cihazlar.
+- Tamamen kaldırmak için: Steam mobil uygulamasında Steam Guard → yetkili cihazlar listesinden "Kümes Masaüstü"nü kaldır.
 
 ## Kaynaktan derleme
 
@@ -68,7 +68,7 @@ Kümes puts your CS2 pet chicken on your Windows desktop. It walks, pecks, sleep
 
 You need Windows 10 or 11 (64-bit) and a chicken in your CS2 inventory. The chicken model is prepared on your PC: from your CS2 install, or, without CS2, downloaded from Valve with your own Steam account (~29 MB). The UI follows your Windows language; change it in Settings → Language.
 
-Your password goes only to Steam and is never saved. Kümes connects as a separate Steam device, shows as "Playing CS2" for a few seconds and reads your chicken. It never trades, buys or sends messages. To remove it: Steam → Settings → Security → Authorized devices.
+Your password goes only to Steam and is never saved. Kümes connects as a separate Steam device, shows as "Playing CS2" for a few seconds and reads your chicken. It never trades, buys or sends messages. To remove it, open Steam Guard in the Steam mobile app and remove "Kümes Masaüstü" from your authorized devices.
 
 Not affiliated with Valve or Steam.
 

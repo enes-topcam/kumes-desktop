@@ -121,7 +121,8 @@ static class Strings
 		["• Tavuk bilgilerin sadece bu bilgisayarda tutulur, hiçbir sunucuya gönderilmez."] = "• Your chicken info stays on this PC and is never sent to any server.",
 		["• Kümes, Steam'e ayrı bir cihaz olarak (\"{0}\") bağlanır ve birkaç saniye \"CS2 oynuyor\" görünür. Takas, satın alma, mesaj gibi bir şey yapmaz."] =
 			"• Kümes connects to Steam as a separate device (\"{0}\") and shows as \"Playing CS2\" for a few seconds. It never trades, buys or sends messages.",
-		["• Erişimi tamamen kaldırmak için: Steam → Ayarlar → Güvenlik → Yetkili cihazlar."] = "• To remove its access completely: Steam → Settings → Security → Authorized devices.",
+		["• Erişimi tamamen kaldırmak için Steam mobil uygulamasında Steam Guard → yetkili cihazlar listesinden \"Kümes Masaüstü\"nü kaldır."] =
+			"• To remove its access completely, open Steam Guard in the Steam mobile app and remove \"Kümes Masaüstü\" from your authorized devices.",
 		["Bağımsızlık"] = "Not affiliated",
 		["Kümes, Valve Corporation ve Steam ile bağlantılı değildir, onlar tarafından onaylanmamıştır. Counter-Strike 2, CS2 ve Steam, Valve Corporation'ın ticari markalarıdır. CS2 dosyaları uygulamayla dağıtılmaz. Bilgisayarındaki CS2'den çıkarılır ya da kendi Steam hesabınla Valve'ın sunucularından indirilir."] =
 			"Kümes is not affiliated with or endorsed by Valve Corporation or Steam. Counter-Strike 2, CS2 and Steam are trademarks of Valve Corporation. CS2 files are not shipped with the app. They are extracted from the CS2 on your PC or downloaded from Valve's servers with your own Steam account.",
