@@ -8,6 +8,7 @@ using Kumes.Steam;
 using Kumes.Ui;
 using Microsoft.Win32;
 using static Kumes.Native.Win32;
+using static Kumes.Lang;
 
 namespace Kumes;
 
@@ -54,6 +55,8 @@ sealed unsafe class App
 	public App(bool startedAtLogin, bool filming = false)
 	{
 		this.filming = filming;
+		Lang.Add(Strings.En);
+		ApplyLanguage();
 		DesktopAccount.MigrateLegacy(settings);
 		foreach (var id in settings.Accounts.Where(DesktopAccount.ValidId))
 		{
@@ -254,16 +257,16 @@ sealed unsafe class App
 	string StatusText()
 	{
 		var a = Sel;
-		string text = a == null ? "Steam girişi gerekiyor (sağ tık)" : cs2Running && a.State != "fetching" ? "CS2 açık, kapatınca güncellenecek" : a.State switch
+		string text = a == null ? T("Steam girişi gerekiyor (sağ tık)") : cs2Running && a.State != "fetching" ? T("CS2 açık, kapatınca güncellenecek") : a.State switch
 		{
-			"fetching" => "Güncelleniyor…",
-			"cs2" => a.Message.Length > 0 ? a.Message : "CS2 açık, kapatınca güncellenecek",
+			"fetching" => T("Güncelleniyor…"),
+			"cs2" => a.Message.Length > 0 ? a.Message : T("CS2 açık, kapatınca güncellenecek"),
 			"waiting" or "error" => a.Message,
-			"need-login" => "Steam girişi gerekiyor (sağ tık)",
+			"need-login" => T("Steam girişi gerekiyor (sağ tık)"),
 			_ => "",
 		};
 		if (cache.Pet is PetInfo p)
-			text = text.Length > 0 ? $"{text} · {Fmt.Ago(p.FetchedAt)}" : $"Güncellendi: {Fmt.Ago(p.FetchedAt)}";
+			text = text.Length > 0 ? $"{text} · {Fmt.Ago(p.FetchedAt)}" : Tf("Güncellendi: {0}", Fmt.Ago(p.FetchedAt));
 		if (extracting != null) text = extracting;
 		return text;
 	}
@@ -291,7 +294,7 @@ sealed unsafe class App
 		}
 		else
 		{
-			foreach (var a in accounts.Where(a => a.LoggedIn && !a.IsDemo)) SetState(a, "waiting", "CS2 kapandı, birazdan güncellenecek…");
+			foreach (var a in accounts.Where(a => a.LoggedIn && !a.IsDemo)) SetState(a, "waiting", T("CS2 kapandı, birazdan güncellenecek…"));
 			afterCloseAt = DateTime.UtcNow + AfterCs2Close;
 			UpdateTray();
 		}
@@ -307,7 +310,7 @@ sealed unsafe class App
 		var list = (only != null ? [only] : accounts).Where(a => a.LoggedIn && !a.IsDemo).ToList();
 		if (list.Count == 0) { UpdateTray(); return; }
 		fetching = true;
-		foreach (var a in list) SetState(a, "fetching", "Güncelleniyor…");
+		foreach (var a in list) SetState(a, "fetching", T("Güncelleniyor…"));
 		UpdateTray();
 		fetchCts = new CancellationTokenSource();
 		var ct = fetchCts.Token;
@@ -316,7 +319,7 @@ sealed unsafe class App
 		{
 			foreach (var a in list)
 			{
-				if (ct.IsCancellationRequested) { msg.Post(() => SetState(a, "cs2", "CS2 açık, kapatınca güncellenecek")); continue; }
+				if (ct.IsCancellationRequested) { msg.Post(() => SetState(a, "cs2", T("CS2 açık, kapatınca güncellenecek"))); continue; }
 				try
 				{
 					var r = a.Steam.FetchPetAsync(ct).GetAwaiter().GetResult(); // sırayla, arka planda
@@ -356,7 +359,7 @@ sealed unsafe class App
 				SetState(a, "cs2", se.Message);
 				break;
 			case OperationCanceledException or TaskCanceledException:
-				SetState(a, "cs2", "CS2 açık, kapatınca güncellenecek"); // CS2 açıldığı için iptal edildi
+				SetState(a, "cs2", T("CS2 açık, kapatınca güncellenecek")); // CS2 açıldığı için iptal edildi
 				break;
 			default:
 				Log.Write($"güncelleme hatası ({a.Id}): {e}");
@@ -529,7 +532,7 @@ sealed unsafe class App
 						case SteamException e: err = e.Message; break;
 						case var e:
 							Log.Write($"şifreyle giriş hatası: {e}");
-							err = "Steam'e bağlanılamadı. Biraz sonra tekrar dene.";
+							err = T("Steam'e bağlanılamadı. Biraz sonra tekrar dene.");
 							break;
 					}
 					if (login == w) w.PasswordFailed(err);
@@ -545,7 +548,7 @@ sealed unsafe class App
 		if (!DesktopAccount.ValidId(id))
 		{
 			Log.Write("girişten beklenmeyen hesap adı geldi, kaydedilmedi");
-			if (login == w) w.SetMessage("Giriş yapılamadı. Tekrar dene.", bad: true);
+			if (login == w) w.SetMessage(T("Giriş yapılamadı. Tekrar dene."), bad: true);
 			return;
 		}
 		EndDemo(openLogin: false); // gerçek hesap geldi: örnek tavuk kalkar
@@ -560,11 +563,23 @@ sealed unsafe class App
 		SetState(a, "idle");
 		if (login == w)
 		{
-			w.SetDone("Giriş yapıldı, tavuk bilgileri alınıyor…");
+			w.SetDone(T("Giriş yapıldı, tavuk bilgileri alınıyor…"));
 			closeLoginAt = DateTime.UtcNow.AddSeconds(1.5);
 		}
 		Select(a);
 		Refresh("login", a);
+	}
+
+	// Dil: ayarda seçilmişse o, değilse Windows'un dili (Türkçe değilse İngilizce)
+	void ApplyLanguage()
+	{
+		Lang.English = settings.Language switch
+		{
+			"en" => true,
+			"tr" => false,
+			_ => System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName != "tr",
+		};
+		login?.Repaint();
 	}
 
 	// ---------- tray ve menü ----------
@@ -572,10 +587,10 @@ sealed unsafe class App
 	string TrayLabel()
 	{
 		var p = cache.Pet;
-		if (p == null) return "Tavuk verisi bekleniyor";
-		if (!p.Found) return "Envanterde tavuk bulunamadı";
-		var food = p.FoodExpiresAt is DateTimeOffset f ? $"Yem: {Fmt.Duration(f - DateTimeOffset.Now)}" : "Yem: ?";
-		return $"{p.Name} ({p.StageName}) | {food}";
+		if (p == null) return T("Tavuk verisi bekleniyor");
+		if (!p.Found) return T("Envanterde tavuk bulunamadı");
+		var food = p.FoodExpiresAt is DateTimeOffset f ? Tf("Yem: {0}", Fmt.Duration(f - DateTimeOffset.Now)) : T("Yem: ?");
+		return $"{p.Name} ({(p.StageName is { } st ? T(st) : "?")}) | {food}";
 	}
 
 	// tray ipucu + (açıksa) Kümes penceresi güncel durumla yeniden çizilir
@@ -657,6 +672,12 @@ sealed unsafe class App
 			case "openfolder": OpenShell(Store.DataDir); break;
 			case "openlog": OpenShell(Store.File("kumes.log")); break;
 			case "reextract": StartExtract(); break;
+			case "lang":
+				settings.Language = Lang.English ? "tr" : "en";
+				Store.Save("settings.json", settings);
+				ApplyLanguage();
+				UpdateTray();
+				break;
 		}
 	}
 
@@ -676,19 +697,19 @@ sealed unsafe class App
 		bool autostart = IsAutostart();
 		var menu = new PopupMenu()
 			.Item(TrayLabel(), null, enabled: false)
-			.Item("Kümes penceresini aç", OpenPanel)
+			.Item(T("Kümes penceresini aç"), OpenPanel)
 			.Separator()
-			.Item("Şimdi güncelle", () => Refresh("manual"), enabled: loggedIn && !fetching)
-			.Item(AnyLoggedIn ? "Steam hesabı ekle" : "Steam ile giriş yap", OpenLogin)
+			.Item(T("Şimdi güncelle"), () => Refresh("manual"), enabled: loggedIn && !fetching)
+			.Item(AnyLoggedIn ? T("Steam hesabı ekle") : T("Steam ile giriş yap"), OpenLogin)
 			.Separator()
-			.Item("Tavuğu göster", () => ChangeSetting(s => s.Visible = !s.Visible), isChecked: settings.Visible)
-			.Item("Her zaman üstte", () => ChangeSetting(s => s.AlwaysOnTop = !s.AlwaysOnTop), isChecked: settings.AlwaysOnTop)
-			.Item("CS2 açıkken gizle", () => ChangeSetting(s => s.HideWhileCs2 = !s.HideWhileCs2), isChecked: settings.HideWhileCs2)
-			.Item("Windows açılınca başlat", () => SetAutostart(!autostart), isChecked: autostart)
+			.Item(T("Tavuğu göster"), () => ChangeSetting(s => s.Visible = !s.Visible), isChecked: settings.Visible)
+			.Item(T("Her zaman üstte"), () => ChangeSetting(s => s.AlwaysOnTop = !s.AlwaysOnTop), isChecked: settings.AlwaysOnTop)
+			.Item(T("CS2 açıkken gizle"), () => ChangeSetting(s => s.HideWhileCs2 = !s.HideWhileCs2), isChecked: settings.HideWhileCs2)
+			.Item(T("Windows açılınca başlat"), () => SetAutostart(!autostart), isChecked: autostart)
 			.Separator()
-			.Submenu("Animasyonlar (test)", AnimationMenu(), enabled: view?.Visible == true)
+			.Submenu(T("Animasyonlar (test)"), AnimationMenu(), enabled: view?.Visible == true)
 			.Separator()
-			.Item("Kapat", () => running = false);
+			.Item(T("Kapat"), () => running = false);
 		msg.BeginModal(); // menü açıkken de tavuk hareket etsin
 		try { menu.Show(msg.Hwnd, x, y); }
 		finally { msg.EndModal(); }
@@ -709,14 +730,14 @@ sealed unsafe class App
 	{
 		var groups = new (string Title, Func<string, bool> Match)[]
 		{
-			("Numaralar", n => n.Contains("trick") || n.Contains("react")),
-			("Bekleme ve yürüme", n => n.Contains("idle") || n.Contains("walk")),
-			("Oturma ve uyku", n => n.Contains("squat") || n.Contains("sleep") || n.Contains("sad")),
-			("Diğer", _ => true),
+			(T("Numaralar"), n => n.Contains("trick") || n.Contains("react")),
+			(T("Bekleme ve yürüme"), n => n.Contains("idle") || n.Contains("walk")),
+			(T("Oturma ve uyku"), n => n.Contains("squat") || n.Contains("sleep") || n.Contains("sad")),
+			(T("Diğer"), _ => true),
 		};
 		var menu = new PopupMenu()
-			.Item("Sağa yürü (3 sn)", () => view?.Behavior.WalkTest(1))
-			.Item("Sola yürü (3 sn)", () => view?.Behavior.WalkTest(-1))
+			.Item(T("Sağa yürü (3 sn)"), () => view?.Behavior.WalkTest(1))
+			.Item(T("Sola yürü (3 sn)"), () => view?.Behavior.WalkTest(-1))
 			.Separator();
 		var clips = view?.Behavior.TestClips.ToList() ?? new();
 		var used = new HashSet<string>();
@@ -729,11 +750,11 @@ sealed unsafe class App
 				if (used.Contains(name) || !match(name)) continue;
 				used.Add(name);
 				count++;
-				var label = AnimLabels.TryGetValue(name, out var l) ? l
-					: name.StartsWith("chick_trick") ? $"Numara {name[11..].TrimStart('0')}" : name;
-				if (name is "chick_trick02" or "chick_trick05" or "chick_trick07") label += " (büyük zıplama)";
+				var label = AnimLabels.TryGetValue(name, out var l) ? T(l)
+					: name.StartsWith("chick_trick") ? Tf("Numara {0}", name[11..].TrimStart('0')) : name;
+				if (name is "chick_trick02" or "chick_trick05" or "chick_trick07") label += T(" (büyük zıplama)");
 				var clip = name;
-				sub.Item($"{label}\t{name[6..]} · {dur:F1} sn", () => view?.Behavior.PlayTest(clip));
+				sub.Item($"{label}\t{name[6..]} · {dur:F1} {T("sn")}", () => view?.Behavior.PlayTest(clip));
 			}
 			if (count > 0) menu.Submenu(title, sub);
 		}
@@ -777,19 +798,19 @@ sealed unsafe class App
 
 		if (remaining <= TimeSpan.Zero && !flags.Expired)
 		{
-			tray.Notify($"{p.Name} aç kaldı", "Yemi bitti. CS2'ye girip besle.");
+			tray.Notify(Tf("{0} aç kaldı", p.Name), T("Yemi bitti. CS2'ye girip besle."));
 			flags.Expired = flags.Hours = flags.Day = true;
 			changed = true;
 		}
 		else if (remaining > TimeSpan.Zero && remaining <= TimeSpan.FromHours(3) && !flags.Hours)
 		{
-			tray.Notify($"{p.Name} çok acıktı", $"Yemin bitmesine {Fmt.Duration(remaining)} kaldı. CS2'ye girip besle.");
+			tray.Notify(Tf("{0} çok acıktı", p.Name), Tf("Yemin bitmesine {0} kaldı. CS2'ye girip besle.", Fmt.Duration(remaining)));
 			flags.Hours = flags.Day = true;
 			changed = true;
 		}
 		else if (remaining > TimeSpan.FromHours(3) && remaining <= TimeSpan.FromDays(1) && !flags.Day)
 		{
-			tray.Notify($"{p.Name} acıkıyor", $"Yemin bitmesine {Fmt.Duration(remaining)} kaldı. Yarına kadar beslemeyi unutma.");
+			tray.Notify(Tf("{0} acıkıyor", p.Name), Tf("Yemin bitmesine {0} kaldı. Yarına kadar beslemeyi unutma.", Fmt.Duration(remaining)));
 			flags.Day = true;
 			changed = true;
 		}
@@ -825,7 +846,7 @@ sealed unsafe class App
 			return;
 		}
 		extractStarted = true;
-		extracting = "CS2 modelleri hazırlanıyor…";
+		extracting = T("CS2 modelleri hazırlanıyor…");
 		UpdateTray();
 		Log.Write("CS2 modelleri çıkarılıyor");
 		var sw = Stopwatch.StartNew();
@@ -841,12 +862,12 @@ sealed unsafe class App
 		if (accounts.FirstOrDefault(x => x.LoggedIn && !x.IsDemo) is not { } a)
 		{
 			if (extracting == null) Log.Write("CS2 kurulu değil: Steam'e giriş yapılınca tavuk dosyaları indirilecek");
-			extracting = "Tavuğun görünmesi için CS2 kurulu olmalı ya da Steam'e giriş yapılmalı";
+			extracting = T("Tavuğun görünmesi için CS2 kurulu olmalı ya da Steam'e giriş yapılmalı");
 			UpdateTray();
 			return;
 		}
 		extractStarted = true;
-		extracting = "CS2 tavuk dosyaları indiriliyor…";
+		extracting = T("CS2 tavuk dosyaları indiriliyor…");
 		UpdateTray();
 		Log.Write("CS2 kurulu değil: tavuk dosyaları Steam hesabıyla indiriliyor");
 		var sw = Stopwatch.StartNew();

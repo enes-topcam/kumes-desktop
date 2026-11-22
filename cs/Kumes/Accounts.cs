@@ -7,7 +7,7 @@ namespace Kumes;
 
 sealed class DesktopAccount
 {
-	public const string DeviceName = "Kumes Masaustu (C#)";
+	public const string DeviceName = "Kümes Masaüstü"; // Steam'in "Yetkili cihazlar" listesinde görünen ad
 
 	public DesktopAccount(string id)
 	{

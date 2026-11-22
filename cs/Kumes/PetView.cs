@@ -6,6 +6,7 @@ using Kumes.Render;
 using Kumes.Steam;
 using Kumes.Ui;
 using static Kumes.Native.Win32;
+using static Kumes.Lang;
 
 namespace Kumes;
 
@@ -517,21 +518,21 @@ sealed unsafe class PetView : IDisposable
 		string title, main, sub;
 		if (tipTarget == "food")
 		{
-			title = $"🌾 {p.Name} · Yem";
-			if (p.FoodExpiresAt is not DateTimeOffset f) { main = "bilinmiyor"; sub = ""; }
-			else if (f <= DateTimeOffset.Now) { main = "Bitti! 😢"; sub = $"{Fmt.Date(f)} itibarıyla aç"; }
-			else { main = $"{Fmt.Duration(f - DateTimeOffset.Now)} kaldı"; sub = $"Bitiş: {Fmt.Date(f)}"; }
+			title = Tf("🌾 {0} · Yem", p.Name);
+			if (p.FoodExpiresAt is not DateTimeOffset f) { main = T("bilinmiyor"); sub = ""; }
+			else if (f <= DateTimeOffset.Now) { main = T("Bitti! 😢"); sub = Tf("{0} itibarıyla aç", Fmt.Date(f)); }
+			else { main = Tf("{0} kaldı", Fmt.Duration(f - DateTimeOffset.Now)); sub = Tf("Bitiş: {0}", Fmt.Date(f)); }
 		}
 		else
 		{
-			title = $"🌱 {p.Name} · Büyüme";
+			title = Tf("🌱 {0} · Büyüme", p.Name);
 			StageNext.TryGetValue(p.StageName ?? "", out var next);
-			if (p.NextUpgradeAt is not DateTimeOffset n) { main = "Tam büyüdü"; sub = p.StageName ?? ""; }
+			if (p.NextUpgradeAt is not DateTimeOffset n) { main = T("Tam büyüdü"); sub = p.StageName is { } st ? T(st) : ""; }
 			else
 			{
 				var left = n - DateTimeOffset.Now;
-				main = left > TimeSpan.Zero ? $"{Fmt.Duration(left)} sonra" : "yakında";
-				sub = Fmt.Date(n) + (next != null ? $" · {p.StageName} → {next}" : "");
+				main = left > TimeSpan.Zero ? Tf("{0} sonra", Fmt.Duration(left)) : T("yakında");
+				sub = Fmt.Date(n) + (next != null ? $" · {T(p.StageName!)} → {T(next)}" : "");
 			}
 		}
 		var bar = FoodBar();

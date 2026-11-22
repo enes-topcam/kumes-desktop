@@ -10,6 +10,7 @@ using Kumes.Native;
 using Kumes.Steam;
 using Vortice.Direct2D1;
 using static Kumes.Native.Win32;
+using static Kumes.Lang;
 
 namespace Kumes.Ui;
 
@@ -50,9 +51,9 @@ sealed unsafe class MainWindow : WindowBase
 	const string GHome = SvgIcons.Home, GLayers = SvgIcons.Layers, GGear = SvgIcons.Gear, GRefresh = SvgIcons.Refresh, GAdd = SvgIcons.Plus,
 		GChevron = SvgIcons.ChevronRight, GBack = SvgIcons.Back, GCalendar = SvgIcons.Calendar, GCheck = SvgIcons.CheckCircle,
 		GAlert = SvgIcons.AlertCircle, GInfo = SvgIcons.Info, GSignOut = SvgIcons.Logout, GFolder = SvgIcons.Folder, GDoc = SvgIcons.File,
-		GOpen = SvgIcons.External, GBox = SvgIcons.Box, GPower = SvgIcons.Power, GChicken = SvgIcons.Chicken;
+		GOpen = SvgIcons.External, GBox = SvgIcons.Box, GPower = SvgIcons.Power, GChicken = SvgIcons.Chicken, GGlobe = SvgIcons.Globe;
 	static readonly (string Id, string Label, string Glyph)[] Nav =
-		[("home", "Ana Sayfa", GHome), ("collection", "Koleksiyon", GLayers), ("settings", "Ayarlar", GGear)];
+		[("home", "Ana Sayfa", GHome), ("collection", "Koleksiyon", GLayers), ("settings", "Ayarlar", GGear)]; // T ile çizilir
 
 	const uint Style = WS_POPUP | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
 	readonly float dpi;
@@ -236,7 +237,7 @@ sealed unsafe class MainWindow : WindowBase
 			if (active) S.FillRoundRect(14, y, Side - 28, 44, 12, Raised);
 			else if (Hot(nid)) S.FillRoundRect(14, y, Side - 28, 44, 12, 0xFFFFFF0A);
 			Glyph(glyph, 40, y + 22, 17, active ? Text : Muted);
-			S.Text(label, 64, y + 12, F(14.5f, active ? 600 : 400), active ? Text : Muted);
+			S.Text(T(label), 64, y + 12, F(14.5f, active ? 600 : 400), active ? Text : Muted);
 			Item(14, y, Side - 28, 44, nid);
 			y += 52;
 		}
@@ -246,7 +247,7 @@ sealed unsafe class MainWindow : WindowBase
 		int n = model.Accounts.Count(a => a.State != "demo"); // demo hesabı Steam'e bağlı değil
 		bool problem = model.Accounts.Any(a => a.State is "error" or "need-login");
 		uint dot = n == 0 ? Faint : problem ? Error : Positive;
-		string steam = n == 0 ? "Steam bağlı değil" : problem ? "Bağlantı sorunu" : n == 1 ? "Steam Bağlı" : $"{n} Steam hesabı";
+		string steam = n == 0 ? T("Steam bağlı değil") : problem ? T("Bağlantı sorunu") : n == 1 ? T("Steam Bağlı") : Tf("{0} Steam hesabı", n);
 		if (steamBadge != null) S.DrawImage(steamBadge, 22, DH - 90, 26, 26);
 		S.FillEllipse(45, DH - 66, 4, 4, NavBg);
 		S.FillEllipse(45, DH - 66, 3, 3, dot);
@@ -337,17 +338,17 @@ sealed unsafe class MainWindow : WindowBase
 	static string Subtitle(AccountModel a)
 	{
 		var p = a.Pet!;
-		var parts = new[] { p.Breed, p.StageName, a.Coat }.Where(v => !string.IsNullOrEmpty(v));
+		var parts = new[] { p.Breed, p.StageName is { } st ? T(st) : null, a.Coat }.Where(v => !string.IsNullOrEmpty(v));
 		return string.Join(" · ", parts);
 	}
 
 	static string ShortLeft(TimeSpan? t) => t switch
 	{
 		null => "–",
-		{ } x when x <= TimeSpan.Zero => "Bitti",
-		{ Days: > 0 } x => $"{x.Days} gün",
-		{ Hours: > 0 } x => $"{x.Hours} saat",
-		{ } x => $"{Math.Max(1, x.Minutes)} dk",
+		{ } x when x <= TimeSpan.Zero => T("Bitti"),
+		{ Days: > 0 } x => Fmt.Days(x.Days),
+		{ Hours: > 0 } x => Tf("{0} saat", x.Hours),
+		{ } x => Tf("{0} dk", Math.Max(1, x.Minutes)),
 	};
 
 	(string Text, string Glyph, uint Color) SyncText(AccountModel a)
@@ -355,13 +356,13 @@ sealed unsafe class MainWindow : WindowBase
 		var ago = a.Pet?.FetchedAt is { } t ? Fmt.Ago(t) : null;
 		return a.State switch
 		{
-			"demo" => ("Örnek tavuk · kendi tavuğun için giriş yap", GInfo, Muted),
-			"fetching" => ("Güncelleniyor…", GRefresh, Muted),
-			"need-login" => ("Tekrar giriş gerekli", GAlert, Error),
-			"cs2" => (ago != null ? $"CS2 açık · son güncelleme {ago}" : "CS2 açık, kapanınca güncellenecek", GInfo, Muted),
+			"demo" => (T("Örnek tavuk · kendi tavuğun için giriş yap"), GInfo, Muted),
+			"fetching" => (T("Güncelleniyor…"), GRefresh, Muted),
+			"need-login" => (T("Tekrar giriş gerekli"), GAlert, Error),
+			"cs2" => (ago != null ? Tf("CS2 açık · son güncelleme {0}", ago) : T("CS2 açık, kapanınca güncellenecek"), GInfo, Muted),
 			"waiting" => (a.Message, GInfo, Muted),
-			"error" => (ago != null ? $"Güncellenemedi · son güncelleme {ago}" : "Güncellenemedi", GAlert, Error),
-			_ => (ago == null ? "Henüz güncellenmedi" : ago == "az önce" ? "Az önce güncellendi" : $"{ago} güncellendi", GCheck, Positive),
+			"error" => (ago != null ? Tf("Güncellenemedi · son güncelleme {0}", ago) : T("Güncellenemedi"), GAlert, Error),
+			_ => (ago == null ? T("Henüz güncellenmedi") : Fmt.IsJustNow(a.Pet!.FetchedAt) ? T("Az önce güncellendi") : Tf("{0} güncellendi", ago), GCheck, Positive),
 		};
 	}
 
@@ -377,11 +378,11 @@ sealed unsafe class MainWindow : WindowBase
 		// kimlik
 		const float pt = 128;
 		Portrait(a, cx, y + pad, pt, 18);
-		S.Text(p.Name ?? "Tavuğum", cx + pt + 24, y + pad + 32, D(34, 700), Text);
+		S.Text(p.Name ?? T("Tavuğum"), cx + pt + 24, y + pad + 32, D(34, 700), Text);
 		S.Text(Subtitle(a), cx + pt + 26, y + pad + 80, F(15.5f), Muted);
-		if (a.State == "need-login") Pill(cr, y + pad + 4, "Giriş gerekli", Error);
+		if (a.State == "need-login") Pill(cr, y + pad + 4, T("Giriş gerekli"), Error);
 		else if (a.State == "demo") Pill(cr, y + pad + 4, "Demo", Lavender);
-		else Pill(cr, y + pad + 4, "Takipte", Positive);
+		else Pill(cr, y + pad + 4, T("Takipte"), Positive);
 
 		// alttan yukarı: güncelleme satırı, metrik kartları; kalan alan sayaç bloğu
 		float syncH = 52, metricH = 104, gap = 16;
@@ -394,48 +395,48 @@ sealed unsafe class MainWindow : WindowBase
 		float bx = cx + 26, br = cr - 26;
 		float big = Math.Clamp(blockH * 0.30f, 40, 64);
 		float ty = blockY + (blockH - (32 + big + 26 + 10 + 34)) / 2; // içerik dikeyde ortada
-		S.Text("Yemin bitmesine", bx, ty, F(16), Muted);
+		S.Text(T("Yemin bitmesine"), bx, ty, F(16), Muted);
 		if (s.FoodLeft is not { } left)
-			S.Text("Yem bilgisi yok", bx, ty + 30, D(big * 0.8f), Text);
+			S.Text(T("Yem bilgisi yok"), bx, ty + 30, D(big * 0.8f), Text);
 		else if (left <= TimeSpan.Zero)
 		{
-			S.Text("Yem bitti", bx, ty + 28, D(big), Error);
-			S.Text($"Bitti: {Fmt.DateLong(p.FoodExpiresAt!.Value)}", bx, ty + 32 + big + 40, F(14), Muted);
+			S.Text(T("Yem bitti"), bx, ty + 28, D(big), Error);
+			S.Text(Tf("Bitti: {0}", Fmt.DateLong(p.FoodExpiresAt!.Value)), bx, ty + 32 + big + 40, F(14), Muted);
 		}
 		else
 		{
 			S.Text(Fmt.DurationLong(left), bx, ty + 26, D(big), s.FoodUrgent ? Error : Text);
 			var pf = F(15, 600);
-			string pct = $"%{Math.Round(s.FoodFraction * 100)}";
+			string pct = Tf("%{0}", Math.Round(s.FoodFraction * 100));
 			float pw = W(pct, pf), barY = ty + 32 + big + 26;
 			Bar(bx, barY, br - bx - pw - 18, 10, s.FoodFraction, s.FoodUrgent ? Error : Lavender);
 			S.Text(pct, br - pw, barY - 7, pf, Text);
 			var df = F(13.5f);
-			S.Text("kalan yem", bx, barY + 22, df, Muted);
+			S.Text(T("kalan yem"), bx, barY + 22, df, Muted);
 			var end = Fmt.DateLong(p.FoodExpiresAt!.Value);
 			S.Text(end, br - W(end, df), barY + 22, df, Muted);
 		}
 
 		// iki metrik kartı
 		string stageLabel, stageValue;
-		if (s.NextStage == null) { stageLabel = "Gelişim"; stageValue = "Tamamlandı"; }
+		if (s.NextStage == null) { stageLabel = T("Gelişim"); stageValue = T("Tamamlandı"); }
 		else
 		{
-			stageLabel = $"{s.NextStage} olmasına";
-			stageValue = s.NextStageLeft is { } n ? (n > TimeSpan.Zero ? Fmt.DurationLong(n) : "Bugün") : "Bilinmiyor";
+			stageLabel = Tf("{0} olmasına", T(s.NextStage));
+			stageValue = s.NextStageLeft is { } n ? (n > TimeSpan.Zero ? Fmt.DurationLong(n) : T("Bugün")) : T("Bilinmiyor");
 		}
 		float mw = (cr - cx - gap) / 2;
 		Metric(cx, metricY, mw, metricH, GChicken, stageLabel, stageValue);
-		Metric(cx + mw + gap, metricY, mw, metricH, GCalendar, "Mevcut yaşı", s.AgeDays is int d ? $"{d} gün" : "Bilinmiyor");
+		Metric(cx + mw + gap, metricY, mw, metricH, GCalendar, T("Mevcut yaşı"), s.AgeDays is int d ? Fmt.Days(d) : T("Bilinmiyor"));
 
 		// güncelleme durumu + Güncelle
 		var (text, glyph, gc) = SyncText(a);
 		float sy = syncY + syncH / 2;
 		Glyph(glyph, cx + 12, sy, 18, gc);
 		S.Text(text, cx + 34, sy - 10, F(14), a.State is "error" or "need-login" ? Error : Muted);
-		if (a.State == "need-login") Button(cr - 150, sy - 21, 150, 42, GSignOut, "Giriş yap", "login");
-		else if (a.State == "demo") Button(cr - 150, sy - 21, 150, 42, "", "Giriş yap", "login", primary: true);
-		else Button(cr - 140, sy - 21, 140, 42, GRefresh, "Güncelle", "refresh:" + a.Id, enabled: !model.Fetching);
+		if (a.State == "need-login") Button(cr - 150, sy - 21, 150, 42, GSignOut, T("Giriş yap"), "login");
+		else if (a.State == "demo") Button(cr - 150, sy - 21, 150, 42, "", T("Giriş yap"), "login", primary: true);
+		else Button(cr - 140, sy - 21, 140, 42, GRefresh, T("Güncelle"), "refresh:" + a.Id, enabled: !model.Fetching);
 		return h;
 	}
 
@@ -453,16 +454,16 @@ sealed unsafe class MainWindow : WindowBase
 		var p = a.Pet!;
 		var events = new List<(DateTimeOffset At, string Text, string Icon)>();
 		var hist = a.History.ToList();
-		foreach (var f in PetStats.Feedings(hist)) events.Add((f.SeenAt, $"Yem yenilendi (+{Math.Round(f.Added.TotalDays)} gün)", SvgIcons.Bowl));
+		foreach (var f in PetStats.Feedings(hist)) events.Add((f.SeenAt, Tf("Yem yenilendi (+{0} gün)", Math.Round(f.Added.TotalDays)), SvgIcons.Bowl));
 		for (int i = 1; i < hist.Count; i++)
 			if (hist[i].Stage != null && hist[i - 1].Stage != null && hist[i].Stage != hist[i - 1].Stage)
-				events.Add((hist[i].At, $"{hist[i].Stage} oldu", GChicken));
+				events.Add((hist[i].At, Tf("{0} oldu", T(hist[i].Stage!)), GChicken));
 		var rows = events.OrderByDescending(e => e.At).Take(12).Select(e => (e.Text, When: Fmt.When(e.At), e.Icon)).ToList();
-		if (p.HatchedAt is { } hatched) rows.Add(("Yumurtadan çıktı", Fmt.Day(hatched), SvgIcons.Egg));
-		rows.Insert(0, ("Bilgiler güncellendi", Fmt.When(p.FetchedAt), GRefresh));
+		if (p.HatchedAt is { } hatched) rows.Add((T("Yumurtadan çıktı"), Fmt.Day(hatched), SvgIcons.Egg));
+		rows.Insert(0, (T("Bilgiler güncellendi"), Fmt.When(p.FetchedAt), GRefresh));
 		if (rows.Count == 0) return y;
 
-		S.Text("Geçmiş", X0 + 4, y, F(15, 600), Text);
+		S.Text(T("Geçmiş"), X0 + 4, y, F(15, 600), Text);
 		y += 34;
 		const float rh = 58;
 		float gh = rows.Count * rh;
@@ -499,16 +500,16 @@ sealed unsafe class MainWindow : WindowBase
 		y = CardTop - scroll;
 		var a = Selected;
 		if (a == null)
-			return y + Message(y, "Steam hesabını bağla", "Tavuğunun yem ve büyüme bilgisi için Steam'e giriş yap.", "Steam ile giriş yap", "login");
+			return y + Message(y, T("Steam hesabını bağla"), T("Tavuğunun yem ve büyüme bilgisi için Steam'e giriş yap."), T("Steam ile giriş yap"), "login");
 		if (a.Pet == null)
 		{
-			if (a.State == "need-login") return y + Message(y, "Tekrar giriş gerekli", $"{a.Name} hesabının Steam oturumu sona erdi.", "Giriş yap", "login");
-			if (a.State == "fetching" || a.State == "idle") return y + Message(y, "Tavuk bilgileri alınıyor…", "Birkaç saniye sürer.");
-			if (a.State is "cs2" or "waiting") return y + Message(y, "Birazdan güncellenecek", a.Message.Length > 0 ? a.Message : "CS2 açık; kapanınca tavuk bilgisi alınacak.", "Tekrar dene", "refresh:" + a.Id);
-			return y + Message(y, "Tavuk bilgisi alınamadı", a.Message.Length > 0 ? a.Message : "Bağlantını kontrol edip yeniden dene.", "Tekrar dene", "refresh:" + a.Id);
+			if (a.State == "need-login") return y + Message(y, T("Tekrar giriş gerekli"), Tf("{0} hesabının Steam oturumu sona erdi.", a.Name), T("Giriş yap"), "login");
+			if (a.State == "fetching" || a.State == "idle") return y + Message(y, T("Tavuk bilgileri alınıyor…"), T("Birkaç saniye sürer."));
+			if (a.State is "cs2" or "waiting") return y + Message(y, T("Birazdan güncellenecek"), a.Message.Length > 0 ? a.Message : T("CS2 açık; kapanınca tavuk bilgisi alınacak."), T("Tekrar dene"), "refresh:" + a.Id);
+			return y + Message(y, T("Tavuk bilgisi alınamadı"), a.Message.Length > 0 ? a.Message : T("Bağlantını kontrol edip yeniden dene."), T("Tekrar dene"), "refresh:" + a.Id);
 		}
 		if (!a.Pet.Found)
-			return y + Message(y, "Tavuk bulunamadı", $"{a.Name} hesabının CS2 envanterinde tavuk ya da yumurta yok.", "Tekrar kontrol et", "refresh:" + a.Id);
+			return y + Message(y, T("Tavuk bulunamadı"), Tf("{0} hesabının CS2 envanterinde tavuk ya da yumurta yok.", a.Name), T("Tekrar kontrol et"), "refresh:" + a.Id);
 		y += PetCard(a, X0, y, CW, CardH) + 28;
 		return History(a, y);
 	}
@@ -516,7 +517,7 @@ sealed unsafe class MainWindow : WindowBase
 	// ---- Koleksiyon ----
 	float PaintCollection(float y)
 	{
-		y = PageTitle(y, "Koleksiyon", "Takip ettiğin tavuklar");
+		y = PageTitle(y, T("Koleksiyon"), T("Takip ettiğin tavuklar"));
 		// + : Steam hesabı ekle
 		float bx = X0 + CW - 40, by = y - 70;
 		S.FillRoundRect(bx, by, 40, 40, 10, Hot("login") ? 0x33324AFFu : Raised);
@@ -531,8 +532,8 @@ sealed unsafe class MainWindow : WindowBase
 			if (p is { Found: true })
 			{
 				Portrait(a, X0 + 12, y + 12, 60, 12);
-				S.Text(p.Name ?? "Tavuğum", X0 + 88, y + 16, F(16.5f, 600), Text);
-				S.Text(a.State == "need-login" ? "Tekrar giriş gerekli" : Subtitle(a), X0 + 88, y + 40, F(13), a.State == "need-login" ? Error : Muted);
+				S.Text(p.Name ?? T("Tavuğum"), X0 + 88, y + 16, F(16.5f, 600), Text);
+				S.Text(a.State == "need-login" ? T("Tekrar giriş gerekli") : Subtitle(a), X0 + 88, y + 40, F(13), a.State == "need-login" ? Error : Muted);
 				var s = PetSummary.From(p, DateTimeOffset.Now);
 				if (s.FoodLeft is { } l && l > TimeSpan.Zero) Bar(X0 + 88, y + 64, 170, 4, s.FoodFraction, s.FoodUrgent ? Error : Lavender);
 				var sf = F(15, 600);
@@ -541,24 +542,24 @@ sealed unsafe class MainWindow : WindowBase
 				if (a.Id == model.SelectedId && model.Accounts.Count > 1)
 				{
 					var tf = F(12, 500);
-					S.Text("Ana Sayfada", X0 + CW - 44 - W("Ana Sayfada", tf), y + 54, tf, Lavender);
+					S.Text(T("Ana Sayfada"), X0 + CW - 44 - W(T("Ana Sayfada"), tf), y + 54, tf, Lavender);
 				}
 			}
 			else
 			{
 				Avatar(a, X0 + 12, y + 12, 60);
 				S.Text(a.Name, X0 + 88, y + 20, F(16.5f, 600), Text);
-				S.Text(a.State == "need-login" ? "Tekrar giriş gerekli" : p == null ? "Henüz bilgi yok" : "Envanterde tavuk yok", X0 + 88, y + 46, F(13), a.State == "need-login" ? Error : Muted);
+				S.Text(a.State == "need-login" ? T("Tekrar giriş gerekli") : p == null ? T("Henüz bilgi yok") : T("Envanterde tavuk yok"), X0 + 88, y + 46, F(13), a.State == "need-login" ? Error : Muted);
 			}
 			Glyph(GChevron, X0 + CW - 22, y + 42, 12, Faint);
 			Item(X0, y, CW, 84, id);
 			y += 94;
 		}
 		if (model.Accounts.Count == 0)
-			y += Message(y, "Henüz tavuk yok", "Steam'e giriş yapınca tavuğun burada görünür.", "Steam ile giriş yap", "login") + 10;
+			y += Message(y, T("Henüz tavuk yok"), T("Steam'e giriş yapınca tavuğun burada görünür."), T("Steam ile giriş yap"), "login") + 10;
 		else if (model.Accounts.Count == 1)
 		{
-			S.Text("Başka bir hesaptaki tavuğu da takip etmek için + ile hesap ekle.", X0 + 4, y + 4, F(13), Faint);
+			S.Text(T("Başka bir hesaptaki tavuğu da takip etmek için + ile hesap ekle."), X0 + 4, y + 4, F(13), Faint);
 			y += 30;
 		}
 		return y;
@@ -570,39 +571,39 @@ sealed unsafe class MainWindow : WindowBase
 		var a = Acc(id);
 		bool hot = Hot("nav:collection");
 		Glyph(GBack, X0 + 6, y + 10, 12, hot ? Text : Muted);
-		S.Text("Koleksiyon", X0 + 22, y, F(14), hot ? Text : Muted);
+		S.Text(T("Koleksiyon"), X0 + 22, y, F(14), hot ? Text : Muted);
 		Item(X0 - 4, y - 6, 120, 32, "nav:collection");
 		y += 36;
 		if (a == null) return y;
 		if (a.Pet is not { Found: true } p)
-			return y + Message(y, a.Name, a.State == "need-login" ? "Bu hesabın Steam oturumu sona erdi." : a.Pet == null ? "Henüz bilgi alınmadı." : "Bu hesabın CS2 envanterinde tavuk ya da yumurta yok.",
-				a.State == "need-login" ? "Giriş yap" : "Tekrar kontrol et", a.State == "need-login" ? "login" : "refresh:" + a.Id);
+			return y + Message(y, a.Name, a.State == "need-login" ? T("Bu hesabın Steam oturumu sona erdi.") : a.Pet == null ? T("Henüz bilgi alınmadı.") : T("Bu hesabın CS2 envanterinde tavuk ya da yumurta yok."),
+				a.State == "need-login" ? T("Giriş yap") : T("Tekrar kontrol et"), a.State == "need-login" ? "login" : "refresh:" + a.Id);
 
 		y += PetCard(a, X0, y, CW, CardH) + 16;
 		if (model.Accounts.Count > 1)
 		{
-			if (a.Id == model.SelectedId) { S.Text("Ana Sayfada ve masaüstünde bu tavuk gösteriliyor.", X0 + 4, y + 2, F(13), Muted); y += 32; }
-			else { Button(X0, y, 240, 40, "", "Ana Sayfada göster", "select:" + a.Id, primary: true); y += 56; }
+			if (a.Id == model.SelectedId) { S.Text(T("Ana Sayfada ve masaüstünde bu tavuk gösteriliyor."), X0 + 4, y + 2, F(13), Muted); y += 32; }
+			else { Button(X0, y, 240, 40, "", T("Ana Sayfada göster"), "select:" + a.Id, primary: true); y += 56; }
 		}
 
 		y = History(a, y);
-		S.Text(a.State == "demo" ? "Örnek tavuk (giriş yapmadan deneniyor)" : $"Steam hesabı: {a.Name}", X0 + 4, y, F(13), Faint);
+		S.Text(a.State == "demo" ? T("Örnek tavuk (giriş yapmadan deneniyor)") : Tf("Steam hesabı: {0}", a.Name), X0 + 4, y, F(13), Faint);
 		return y + 30;
 	}
 
 	// ---- Ayarlar ----
 	float PaintSettings(float y)
 	{
-		y = PageTitle(y, "Ayarlar", null);
+		y = PageTitle(y, T("Ayarlar"), null);
 
 		// masaüstü tavuğu
-		y = Section(y, "Masaüstü tavuğu");
+		y = Section(y, T("Masaüstü tavuğu"));
 		(string L, string Dsc, bool On, string Id)[] toggles =
 		[
-			("Tavuğu göster", "Görev çubuğunun ve pencerelerin üstündeki tavuk", model.Settings.Visible, "visible"),
-			("Her zaman üstte", "Tavuk diğer pencerelerin önünde kalır", model.Settings.AlwaysOnTop, "topmost"),
-			("CS2 açıkken gizle", "Oyun açıkken tavuk görünmez", model.Settings.HideWhileCs2, "hidecs2"),
-			("Windows açılınca başlat", "Pencere açılmadan arka planda başlar", model.Autostart, "autostart"),
+			(T("Tavuğu göster"), T("Görev çubuğunun ve pencerelerin üstündeki tavuk"), model.Settings.Visible, "visible"),
+			(T("Her zaman üstte"), T("Tavuk diğer pencerelerin önünde kalır"), model.Settings.AlwaysOnTop, "topmost"),
+			(T("CS2 açıkken gizle"), T("Oyun açıkken tavuk görünmez"), model.Settings.HideWhileCs2, "hidecs2"),
+			(T("Windows açılınca başlat"), T("Pencere açılmadan arka planda başlar"), model.Autostart, "autostart"),
 		];
 		y = Group(y, toggles.Length, 60, (i, ry) =>
 		{
@@ -614,7 +615,7 @@ sealed unsafe class MainWindow : WindowBase
 		});
 
 		// Steam hesapları
-		y = Section(y, "Steam hesapları");
+		y = Section(y, T("Steam hesapları"));
 		var accs = model.Accounts;
 		y = Group(y, accs.Count + 1, 64, (i, ry) =>
 		{
@@ -623,31 +624,42 @@ sealed unsafe class MainWindow : WindowBase
 				bool hot = Hot("login");
 				S.FillRoundRect(X0 + 16, ry + 13, 38, 38, 10, Raised);
 				Glyph(GAdd, X0 + 35, ry + 32, 13, Text);
-				S.Text("Hesap ekle", X0 + 68, ry + 13, F(14.5f, 600), hot ? Lavender : Text);
-				S.Text("Başka bir hesaptaki tavuğu da takip et", X0 + 68, ry + 34, F(12.5f), Muted);
+				S.Text(T("Hesap ekle"), X0 + 68, ry + 13, F(14.5f, 600), hot ? Lavender : Text);
+				S.Text(T("Başka bir hesaptaki tavuğu da takip et"), X0 + 68, ry + 34, F(12.5f), Muted);
 				Item(X0, ry, CW, 64, "login");
 				return;
 			}
 			var a = accs[i];
 			Avatar(a, X0 + 16, ry + 13, 38);
 			S.Text(a.Name, X0 + 68, ry + 13, F(14.5f, 600), Text);
-			string st = a.State == "demo" ? "Giriş yapmadan deneniyor · örnek tavuk" : a.State == "need-login" ? "Tekrar giriş gerekli" : a.Pet is { Found: true } p ? $"Bağlı · {p.Name}" : "Bağlı";
+			string st = a.State == "demo" ? T("Giriş yapmadan deneniyor · örnek tavuk") : a.State == "need-login" ? T("Tekrar giriş gerekli") : a.Pet is { Found: true } p ? Tf("Bağlı · {0}", p.Name) : T("Bağlı");
 			S.Text(st, X0 + 68, ry + 34, F(12.5f), a.State == "need-login" ? Error : Muted);
 			float extra = a.State == "demo" ? 24 : 0; // "Demoyu kapat" daha uzun
-			if (a.State is "need-login" or "demo") Button(X0 + CW - 248 - extra, ry + 15, 110, 34, "", "Giriş yap", "login");
-			else Button(X0 + CW - 248, ry + 15, 110, 34, GOpen, "Profil", "profile:" + a.Id);
-			Button(X0 + CW - 128 - extra, ry + 15, 112 + extra, 34, GSignOut, a.State == "demo" ? "Demoyu kapat" : "Çıkış yap", "logout:" + a.Id, danger: true);
+			if (a.State is "need-login" or "demo") Button(X0 + CW - 248 - extra, ry + 15, 110, 34, "", T("Giriş yap"), "login");
+			else Button(X0 + CW - 248, ry + 15, 110, 34, GOpen, T("Profil"), "profile:" + a.Id);
+			Button(X0 + CW - 128 - extra, ry + 15, 112 + extra, 34, GSignOut, a.State == "demo" ? T("Demoyu kapat") : T("Çıkış yap"), "logout:" + a.Id, danger: true);
+		});
+
+		// dil: etiket hep iki dilde, yanlış dilde kalan da bulabilsin
+		y = Section(y, T("Dil"));
+		y = Group(y, 1, 60, (_, ry) =>
+		{
+			Glyph(GGlobe, X0 + 34, ry + 30, 15, Muted);
+			S.Text("Dil · Language", X0 + 60, ry + 11, F(14.5f, 600), Hot("lang") ? Lavender : Text);
+			S.Text(Lang.English ? "English" : "Türkçe", X0 + 60, ry + 32, F(12.5f), Muted);
+			Glyph(GChevron, X0 + CW - 24, ry + 30, 11, Faint);
+			Item(X0, ry, CW, 60, "lang");
 		});
 
 		// veri
-		y = Section(y, "Veri");
+		y = Section(y, T("Veri"));
 		var last = model.Accounts.Where(a => a.State != "demo").Select(a => a.Pet?.FetchedAt).Where(t => t != null).DefaultIfEmpty(null).Max();
 		(string L, string Dsc, string G, string Id)[] data =
 		[
-			("Şimdi güncelle", model.Fetching ? "Güncelleniyor…" : last is { } t ? $"Son senkronizasyon: {Fmt.When(t)}" : "Henüz güncellenmedi", GRefresh, "refresh"),
-			("Veri klasörünü aç", "%APPDATA%\\KumesCS", GFolder, "openfolder"),
-			("Kayıt dosyasını aç", "kumes.log", GDoc, "openlog"),
-			("CS2 modellerini yeniden çıkar", model.Extracting ?? "Tavuk modeli ve renkleri baştan hazırlanır", GBox, "reextract"),
+			(T("Şimdi güncelle"), model.Fetching ? T("Güncelleniyor…") : last is { } t ? Tf("Son senkronizasyon: {0}", Fmt.When(t)) : T("Henüz güncellenmedi"), GRefresh, "refresh"),
+			(T("Veri klasörünü aç"), "%APPDATA%\\KumesCS", GFolder, "openfolder"),
+			(T("Kayıt dosyasını aç"), "kumes.log", GDoc, "openlog"),
+			(T("CS2 modellerini yeniden çıkar"), model.Extracting ?? T("Tavuk modeli ve renkleri baştan hazırlanır"), GBox, "reextract"),
 		];
 		y = Group(y, data.Length, 60, (i, ry) =>
 		{
@@ -661,22 +673,20 @@ sealed unsafe class MainWindow : WindowBase
 		});
 
 		// hakkında
-		y = Section(y, "Hakkında");
+		y = Section(y, T("Hakkında"));
 		(string Head, string Body)[] blocks =
 		[
-			("Gizlilik",
-				"• Steam şifren sadece Steam'e gönderilir, Kümes kaydetmez.\n" +
-				"• Steam'in verdiği oturum anahtarı bu bilgisayarda, Windows'un şifrelemesiyle durur.\n" +
-				"• Tavuk bilgilerin sadece bu bilgisayarda tutulur, hiçbir sunucuya gönderilmez.\n" +
-				$"• Kümes, Steam'e ayrı bir cihaz olarak (\"{DesktopAccount.DeviceName}\") bağlanır ve birkaç saniye \"CS2 oynuyor\" görünür. Takas, satın alma, mesaj gibi bir şey yapmaz.\n" +
-				"• Erişimi tamamen kaldırmak için: Steam → Ayarlar → Güvenlik → Yetkili cihazlar."),
-			("Bağımsızlık",
-				"Kümes, Valve Corporation ve Steam ile bağlantılı değildir, onlar tarafından onaylanmamıştır. " +
-				"Counter-Strike 2, CS2 ve Steam, Valve Corporation'ın ticari markalarıdır. " +
-				"CS2 dosyaları uygulamayla dağıtılmaz. Bilgisayarındaki CS2'den çıkarılır ya da kendi Steam hesabınla Valve'ın sunucularından indirilir."),
-			("Açık kaynak",
-				"Kaynak kodu: github.com/enes-topcam/kumes-desktop (MIT)\n" +
-				"SteamKit2 (LGPL-2.1) · ValveResourceFormat (MIT) · Silk.NET (MIT) · Vortice (MIT) · QRCoder (MIT)"),
+			(T("Gizlilik"), string.Join("\n",
+				T("• Steam şifren sadece Steam'e gönderilir, Kümes kaydetmez."),
+				T("• Steam'in verdiği oturum anahtarı bu bilgisayarda, Windows'un şifrelemesiyle durur."),
+				T("• Tavuk bilgilerin sadece bu bilgisayarda tutulur, hiçbir sunucuya gönderilmez."),
+				Tf("• Kümes, Steam'e ayrı bir cihaz olarak (\"{0}\") bağlanır ve birkaç saniye \"CS2 oynuyor\" görünür. Takas, satın alma, mesaj gibi bir şey yapmaz.", DesktopAccount.DeviceName),
+				T("• Erişimi tamamen kaldırmak için: Steam → Ayarlar → Güvenlik → Yetkili cihazlar."))),
+			(T("Bağımsızlık"),
+				T("Kümes, Valve Corporation ve Steam ile bağlantılı değildir, onlar tarafından onaylanmamıştır. Counter-Strike 2, CS2 ve Steam, Valve Corporation'ın ticari markalarıdır. CS2 dosyaları uygulamayla dağıtılmaz. Bilgisayarındaki CS2'den çıkarılır ya da kendi Steam hesabınla Valve'ın sunucularından indirilir.")),
+			(T("Açık kaynak"), string.Join("\n",
+				Tf("Kaynak kodu: {0} (MIT)", "github.com/enes-topcam/kumes-desktop"),
+				"SteamKit2 (LGPL-2.1) · ValveResourceFormat (MIT) · Silk.NET (MIT) · Vortice (MIT) · QRCoder (MIT)")),
 		];
 		float by = y + 18;
 		var bf = F(13.5f);
@@ -691,7 +701,7 @@ sealed unsafe class MainWindow : WindowBase
 			by += 14;
 		}
 		y += bh + 16;
-		Button(X0, y, 230, 40, GPower, "Kümes'i tamamen kapat", "quit", danger: true);
+		Button(X0, y, 230, 40, GPower, T("Kümes'i tamamen kapat"), "quit", danger: true);
 		return y + 60;
 	}
 

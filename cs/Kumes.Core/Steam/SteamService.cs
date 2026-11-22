@@ -80,7 +80,7 @@ public partial class SteamService(ISessionStore store, string deviceName, uint l
 	// Tavuk verisi + hesabın Steam'deki görünen adı ve profil fotoğrafı (pencere için)
 	public async Task<FetchResult> FetchPetAsync(CancellationToken ct)
 	{
-		var saved = store.Load() ?? throw new SteamException("NEED_LOGIN", "Steam girişi gerekiyor.");
+		var saved = store.Load() ?? throw new SteamException("NEED_LOGIN", Lang.T("Steam girişi gerekiyor."));
 
 		using var conn = new Connection();
 		var user = conn.Client.GetHandler<SteamUser>()!;
@@ -104,12 +104,12 @@ public partial class SteamService(ISessionStore store, string deviceName, uint l
 				if (cb.Result is EResult.InvalidPassword or EResult.AccessDenied or EResult.Expired or EResult.Revoked or EResult.InvalidSignature)
 				{
 					store.Clear($"steam reddetti ({cb.Result})");
-					result.TrySetException(new SteamException("NEED_LOGIN", "Steam oturumunun süresi dolmuş, tekrar giriş yap."));
+					result.TrySetException(new SteamException("NEED_LOGIN", Lang.T("Steam oturumunun süresi dolmuş, tekrar giriş yap.")));
 				}
 				else if (cb.Result is EResult.RateLimitExceeded or EResult.AccountLoginDeniedThrottle)
-					result.TrySetException(new SteamException("RATE_LIMIT", "Steam çok fazla deneme yapıldığını söylüyor."));
+					result.TrySetException(new SteamException("RATE_LIMIT", Lang.T("Steam çok fazla deneme yapıldığını söylüyor.")));
 				else
-					result.TrySetException(new SteamException("STEAM_ERROR", $"Steam hatası: {cb.Result}"));
+					result.TrySetException(new SteamException("STEAM_ERROR", Lang.Tf("Steam hatası: {0}", cb.Result)));
 				return;
 			}
 
@@ -129,8 +129,8 @@ public partial class SteamService(ISessionStore store, string deviceName, uint l
 			blocked = true;
 			Log.Write($"hesap başka bir yerde oyunda (uygulama {cb.PlayingAppID}), CS2'ye girilmedi");
 			result.TrySetException(new SteamException("PLAYING_ELSEWHERE", cb.PlayingAppID == Cs2AppId
-				? "CS2 başka bir yerde açık; kapanınca güncellenecek."
-				: "Steam'de başka bir oyun açık; kapanınca güncellenecek."));
+				? Lang.T("CS2 başka bir yerde açık; kapanınca güncellenecek.")
+				: Lang.T("Steam'de başka bir oyun açık; kapanınca güncellenecek.")));
 		});
 
 		conn.Manager.Subscribe<SteamUser.AccountInfoCallback>(cb => persona = cb.PersonaName);
@@ -142,7 +142,7 @@ public partial class SteamService(ISessionStore store, string deviceName, uint l
 		});
 
 		conn.Manager.Subscribe<SteamUser.LoggedOffCallback>(cb =>
-			result.TrySetException(new SteamException("STEAM_ERROR", $"Steam oturumu kapattı: {cb.Result}")));
+			result.TrySetException(new SteamException("STEAM_ERROR", Lang.Tf("Steam oturumu kapattı: {0}", cb.Result))));
 
 		conn.Manager.Subscribe<SteamGameCoordinator.MessageCallback>(cb =>
 		{
@@ -161,11 +161,11 @@ public partial class SteamService(ISessionStore store, string deviceName, uint l
 			}
 			catch (Exception e)
 			{
-				result.TrySetException(new SteamException("PARSE_ERROR", $"Veri okunamadı: {e.Message}"));
+				result.TrySetException(new SteamException("PARSE_ERROR", Lang.Tf("Veri okunamadı: {0}", e.Message)));
 			}
 		});
 
-		conn.OnDisconnected = () => result.TrySetException(new SteamException("STEAM_ERROR", "Steam bağlantısı koptu."));
+		conn.OnDisconnected = () => result.TrySetException(new SteamException("STEAM_ERROR", Lang.T("Steam bağlantısı koptu.")));
 		conn.OnTick = () =>
 		{
 			// tavuk verisi geldi: profil bilgisi de geldiyse (ya da 1,5 sn geçtiyse) bitir
@@ -206,7 +206,7 @@ public partial class SteamService(ISessionStore store, string deviceName, uint l
 		}
 		catch (TimeoutException)
 		{
-			throw new SteamException("TIMEOUT", "CS2 sunucusuna bağlanılamadı (zaman aşımı).");
+			throw new SteamException("TIMEOUT", Lang.T("CS2 sunucusuna bağlanılamadı (zaman aşımı)."));
 		}
 		finally
 		{
@@ -263,7 +263,7 @@ public partial class SteamService(ISessionStore store, string deviceName, uint l
 			Manager.Subscribe<SteamClient.ConnectedCallback>(_ => connected.TrySetResult());
 			Manager.Subscribe<SteamClient.DisconnectedCallback>(cb =>
 			{
-				connected.TrySetException(new SteamException("STEAM_ERROR", "Steam'e bağlanılamadı."));
+				connected.TrySetException(new SteamException("STEAM_ERROR", Lang.T("Steam'e bağlanılamadı.")));
 				if (Closing) return;
 				Log.Write("steam bağlantısı koptu");
 				OnDisconnected?.Invoke();

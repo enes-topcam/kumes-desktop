@@ -40,8 +40,8 @@ public partial class SteamService
 		var key = await WithConnection(auth => auth.GetPasswordRSAPublicKey(
 			new CAuthentication_GetPasswordRSAPublicKey_Request { account_name = username }).ToTask(), ct);
 		if (key.Result is EResult.InvalidName or EResult.AccountNotFound or EResult.InvalidPassword)
-			throw new SteamException("BAD_PASSWORD", "Kullanıcı adı ya da şifre yanlış.");
-		if (key.Result != EResult.OK) throw new SteamException("STEAM_ERROR", $"Steam hatası: {key.Result}");
+			throw new SteamException("BAD_PASSWORD", Lang.T("Kullanıcı adı ya da şifre yanlış."));
+		if (key.Result != EResult.OK) throw new SteamException("STEAM_ERROR", Lang.Tf("Steam hatası: {0}", key.Result));
 
 		string encrypted;
 		using (var rsa = RSA.Create())
@@ -72,10 +72,10 @@ public partial class SteamService
 			},
 		}).ToTask(), ct);
 		if (r.Result is EResult.InvalidPassword or EResult.InvalidName or EResult.AccountNotFound)
-			throw new SteamException("BAD_PASSWORD", "Kullanıcı adı ya da şifre yanlış.");
+			throw new SteamException("BAD_PASSWORD", Lang.T("Kullanıcı adı ya da şifre yanlış."));
 		if (r.Result is EResult.RateLimitExceeded or EResult.AccountLoginDeniedThrottle)
-			throw new SteamException("RATE_LIMIT", "Çok fazla deneme yapıldı, biraz bekleyip tekrar dene.");
-		if (r.Result != EResult.OK) throw new SteamException("STEAM_ERROR", $"Steam hatası: {r.Result}");
+			throw new SteamException("RATE_LIMIT", Lang.T("Çok fazla deneme yapıldı, biraz bekleyip tekrar dene."));
+		if (r.Result != EResult.OK) throw new SteamException("STEAM_ERROR", Lang.Tf("Steam hatası: {0}", r.Result));
 		var begin = r.Body;
 
 		ulong clientId = begin.client_id;
@@ -105,7 +105,7 @@ public partial class SteamService
 				if (res.Result is EResult.OK or EResult.DuplicateRequest) return;
 				if (res.Result is EResult.InvalidLoginAuthCode or EResult.TwoFactorCodeMismatch) continue;
 				if (res.Result is EResult.Expired or EResult.FileNotFound)
-					throw new SteamException("EXPIRED", "Giriş isteğinin süresi doldu, tekrar dene.");
+					throw new SteamException("EXPIRED", Lang.T("Giriş isteğinin süresi doldu, tekrar dene."));
 				throw new SteamException("STEAM_ERROR", $"Kod kabul edilmedi: {res.Result}");
 			}
 		}
@@ -132,8 +132,8 @@ public partial class SteamService
 				request_id = begin.request_id,
 			}).ToTask(), ct);
 			if (poll.Result is EResult.FileNotFound or EResult.Expired)
-				throw new SteamException("EXPIRED", "Giriş isteğinin süresi doldu, tekrar dene.");
-			if (poll.Result != EResult.OK) throw new SteamException("STEAM_ERROR", $"Steam hatası: {poll.Result}");
+				throw new SteamException("EXPIRED", Lang.T("Giriş isteğinin süresi doldu, tekrar dene."));
+			if (poll.Result != EResult.OK) throw new SteamException("STEAM_ERROR", Lang.Tf("Steam hatası: {0}", poll.Result));
 			if (poll.Body.new_client_id != 0) clientId = poll.Body.new_client_id;
 			if (!string.IsNullOrEmpty(poll.Body.refresh_token))
 			{
@@ -149,7 +149,7 @@ public partial class SteamService
 			if (await Task.WhenAny(delay, codeChosen) == codeChosen) { codeChosen = null; await EnterCode(); }
 			else await delay;
 		}
-		throw new SteamException("EXPIRED", "Giriş onaylanmadı (zaman aşımı).");
+		throw new SteamException("EXPIRED", Lang.T("Giriş onaylanmadı (zaman aşımı)."));
 	}
 
 	// Giriş adımları arasında açık tutulan bağlantı; Steam kapattıysa yenisi açılır

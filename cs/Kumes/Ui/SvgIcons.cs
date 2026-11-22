@@ -24,6 +24,7 @@ static class SvgIcons
 	public const string File = "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z M14 2v4a2 2 0 0 0 2 2h4 M16 13H8 M16 17H8 M10 9H8";
 	public const string Box = "M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z M3.3 7l8.7 5 8.7-5 M12 22V12";
 	public const string Power = "M12 2v10 M18.4 6.6a9 9 0 1 1-12.77.04";
+	public const string Globe = "M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20z M2 12h20 M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z";
 	public const string External = "M15 3h6v6 M10 14 21 3 M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6";
 	public const string Egg = "M12 2.5c-3.6 0-7 5.6-7 10.5a7 7 0 0 0 14 0c0-4.9-3.4-10.5-7-10.5z";
 	public const string Bowl = "M3 11h18a9 9 0 0 1-18 0z M8 7.5h.01 M12 6h.01 M16 7.5h.01";

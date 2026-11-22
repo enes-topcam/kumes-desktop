@@ -10,6 +10,7 @@ using SkiaSharp;
 using ValveResourceFormat.IO;
 using ValveResourceFormat.ResourceTypes;
 using VResource = ValveResourceFormat.Resource;
+using static Kumes.Lang;
 
 namespace Kumes;
 
@@ -85,13 +86,13 @@ static partial class AssetManager
 		var styles = new Dictionary<string, Dictionary<string, string>>();
 
 		// 1) bütün modeller (tek istekte)
-		progress("CS2 tavuk dosyaları indiriliyor (1/4)…");
+		progress(T("CS2 tavuk dosyaları indiriliyor (1/4)…"));
 		Fetch(Models.Values);
 
 		// 2) GLB'ler (oyundaki animasyonlarla): eksik parçalar (mesh, iskelet, animasyon) bütün ırklar için birlikte
 		// istenir. Model her turda yeniden okunur: animasyon listesi ilk okumada hafızaya alınıyor, sonradan inen
 		// klipler eski nesnede görünmez.
-		progress("CS2 tavuk dosyaları indiriliyor (2/4)…");
+		progress(T("CS2 tavuk dosyaları indiriliyor (2/4)…"));
 		var pending = Models.Keys.ToList();
 		for (int round = 1; round <= 10 && pending.Count > 0; round++)
 		{
@@ -122,7 +123,7 @@ static partial class AssetManager
 		if (pending.Count > 0) throw new InvalidOperationException($"model hazırlanamadı: {string.Join(", ", pending)}");
 
 		// 3) renkler: modelin materyal grupları (grup adı = eşyanın style numarası) + modelin içinde geçen materyaller
-		progress("CS2 tavuk dosyaları indiriliyor (3/4)…");
+		progress(T("CS2 tavuk dosyaları indiriliyor (3/4)…"));
 		var materials = new Dictionary<string, List<string>>();
 		foreach (var (breed, modelPath) in Models)
 		{
@@ -151,7 +152,7 @@ static partial class AssetManager
 			}
 
 		// 4) dokular (tek istekte) ve PNG'ye çevirme
-		progress("CS2 tavuk dosyaları indiriliyor (4/4)…");
+		progress(T("CS2 tavuk dosyaları indiriliyor (4/4)…"));
 		Fetch(plan.SelectMany(c => new[] { c.Tex.Color, c.Tex.Normal, c.Tex.Ao, c.Fur?.Color, c.Fur?.Translucency }));
 		foreach (var breed in Models.Keys) coats[breed] = new();
 		foreach (var (breed, coat, tex, fur) in plan)

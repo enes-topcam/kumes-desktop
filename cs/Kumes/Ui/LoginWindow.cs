@@ -8,6 +8,7 @@ using Kumes.Native;
 using Kumes.Steam;
 using QRCoder;
 using static Kumes.Native.Win32;
+using static Kumes.Lang;
 
 namespace Kumes.Ui;
 
@@ -24,7 +25,7 @@ sealed unsafe class LoginWindow : WindowBase
 	readonly nint memDc, dib, oldBmp;
 	readonly byte* bits;
 	bool[,]? qr;
-	string message = "QR kod hazırlanıyor…"; // QR sekmesinin alt yazısı
+	string message = T("QR kod hazırlanıyor…"); // QR sekmesinin alt yazısı
 	bool messageBad, done;
 
 	// kullanıcı adı sekmesi
@@ -61,7 +62,7 @@ sealed unsafe class LoginWindow : WindowBase
 		AdjustWindowRectEx(&r, Style, false, 0);
 		var wa = GetWorkArea();
 		int w = r.Right - r.Left, h = r.Bottom - r.Top;
-		Create(0, "KumesLogin", "Steam'e giriş", Style,
+		Create(0, "KumesLogin", T("Steam'e giriş"), Style,
 			wa.Left + (wa.Right - wa.Left - w) / 2, wa.Top + (wa.Bottom - wa.Top - h) / 2, w, h);
 		Theme.ApplyTitleBar(Hwnd);
 
@@ -148,8 +149,8 @@ sealed unsafe class LoginWindow : WindowBase
 		if (step != Step.Form) return;
 		var name = GetText(userEdit).Trim();
 		var pw = GetText(passEdit);
-		if (name.Length == 0) { pwError = "Steam kullanıcı adını yaz."; Paint(); SetFocus(userEdit); return; }
-		if (pw.Length == 0) { pwError = "Şifreni yaz."; Paint(); SetFocus(passEdit); return; }
+		if (name.Length == 0) { pwError = T("Steam kullanıcı adını yaz."); Paint(); SetFocus(userEdit); return; }
+		if (pw.Length == 0) { pwError = T("Şifreni yaz."); Paint(); SetFocus(passEdit); return; }
 		pwError = null;
 		step = Step.Busy;
 		Paint();
@@ -172,9 +173,9 @@ sealed unsafe class LoginWindow : WindowBase
 	{
 		if (step != Step.GuardCode) return;
 		var c = GetText(codeEdit).Trim();
-		if (c.Length < 5) { guardText = "Kod 5 karakter olmalı."; Paint(); return; }
+		if (c.Length < 5) { guardText = T("Kod 5 karakter olmalı."); Paint(); return; }
 		step = Step.CodeCheck;
-		guardText = "Kod kontrol ediliyor…";
+		guardText = T("Kod kontrol ediliyor…");
 		Paint();
 		SetFocus(Hwnd);
 		codeWait?.TrySetResult(c);
@@ -205,7 +206,7 @@ sealed unsafe class LoginWindow : WindowBase
 		public void WaitingForAppApproval(bool canUseCode, bool viaEmail)
 		{
 			w.codeChosen = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-			post(() => w.ShowGuard(viaEmail ? "E-postana gelen bağlantıyla girişi onayla." : "Telefonundaki Steam uygulamasından girişi onayla.",
+			post(() => w.ShowGuard(viaEmail ? T("E-postana gelen bağlantıyla girişi onayla.") : T("Telefonundaki Steam uygulamasından girişi onayla."),
 				false, canUseCode));
 		}
 
@@ -213,8 +214,8 @@ sealed unsafe class LoginWindow : WindowBase
 
 		public Task<string?> AskCodeAsync(GuardCodeKind kind, string? email, bool previousWasWrong)
 		{
-			var text = previousWasWrong ? "Kod yanlış, tekrar dene."
-				: kind == GuardCodeKind.Email ? "E-postana gelen kodu yaz." : "Steam uygulamasındaki kodu yaz.";
+			var text = previousWasWrong ? T("Kod yanlış, tekrar dene.")
+				: kind == GuardCodeKind.Email ? T("E-postana gelen kodu yaz.") : T("Steam uygulamasındaki kodu yaz.");
 			var tcs = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
 			w.codeWait = tcs;
 			post(() => { if (w.Hwnd == 0) tcs.TrySetResult(null); else w.ShowGuard(text, true, false); });
@@ -265,6 +266,14 @@ sealed unsafe class LoginWindow : WindowBase
 	// alttaki durum/hata yazısının dikey ortası (altında "Giriş yapmadan dene" varsa onun üstünde)
 	float MsgY => ch - (canDemo ? 72 : 30) * s;
 
+	// Dil değişti: başlık ve içerik yeniden
+	public void Repaint()
+	{
+		if (Hwnd == 0) return;
+		SetWindowTextW(Hwnd, T("Steam'e giriş"));
+		Paint();
+	}
+
 	void Paint()
 	{
 		if (Hwnd == 0) return;
@@ -273,11 +282,11 @@ sealed unsafe class LoginWindow : WindowBase
 		surf.Begin();
 		surf.FillRect(0, 0, cw, ch, Theme.Bg);
 		float pad = 24 * s;
-		surf.Text("Steam'e bağlan", pad, 20 * s, g.Font(24 * s, 700, Theme.Serif), Theme.Ink);
+		surf.Text(T("Steam'e bağlan"), pad, 20 * s, g.Font(24 * s, 700, Theme.Serif), Theme.Ink);
 		surf.FillRect(pad + 1 * s, 56 * s, 28 * s, 3 * s, Theme.Straw); // Kümes penceresiyle aynı vurgu çizgisi
 		var lead = g.Font(13 * s, 400, Theme.Sans);
-		surf.Text("Tavuğunun yem ve büyüme bilgisi için", pad, 66 * s, lead, Theme.Muted);
-		surf.Text("Steam hesabınla giriş yap.", pad, 84 * s, lead, Theme.Muted);
+		surf.Text(T("Tavuğunun yem ve büyüme bilgisi için"), pad, 66 * s, lead, Theme.Muted);
+		surf.Text(T("Steam hesabınla giriş yap."), pad, 84 * s, lead, Theme.Muted);
 
 		bool pwTab = tab == Tab.Password && !done;
 		Place(userEdit, UserField, 19, pwTab && step is Step.Form or Step.Busy);
@@ -287,7 +296,7 @@ sealed unsafe class LoginWindow : WindowBase
 		if (done)
 		{
 			surf.TextCentered("✓", cw / 2f, 250 * s, g.Font(48 * s, 700, Theme.Sans), Theme.Leaf);
-			surf.TextCentered("Giriş tamam", cw / 2f, 298 * s, g.Font(15 * s, 700, Theme.Serif), Theme.Ink);
+			surf.TextCentered(T("Giriş tamam"), cw / 2f, 298 * s, g.Font(15 * s, 700, Theme.Serif), Theme.Ink);
 			if (message.Length > 0)
 				surf.TextCentered(message, cw / 2f, MsgY, g.Font(12.5f * s, 400, Theme.Sans), Theme.Muted);
 		}
@@ -309,7 +318,7 @@ sealed unsafe class LoginWindow : WindowBase
 		var g = Gfx2D.Shared;
 		surf.FillRect(pad, ch - 50 * s, cw - 2 * pad, Math.Max(1, s), Theme.Outline);
 		var f = g.Font(13.5f * s, 600, Theme.Sans);
-		const string text = "Giriş yapmadan dene";
+		string text = T("Giriş yapmadan dene");
 		var size = g.Measure(text, f);
 		float x = (cw - size.X) / 2, y = ch - 25 * s - size.Y / 2;
 		surf.Text(text, x, y, f, hover == "demo" ? StrawHot : Theme.Straw);
@@ -323,7 +332,7 @@ sealed unsafe class LoginWindow : WindowBase
 		surf.FillRoundRect(pad, y, w, h, 9 * s, TabBg);
 		var f = g.Font(13 * s, 600, Theme.Sans);
 		bool locked = step != Step.Form; // giriş sürerken sekme değişmez
-		(Tab T, string Id, string Label)[] tabs = [(Tab.Qr, "tab-qr", "QR kod"), (Tab.Password, "tab-pw", "Kullanıcı adı")];
+		(Tab T, string Id, string Label)[] tabs = [(Tab.Qr, "tab-qr", T("QR kod")), (Tab.Password, "tab-pw", T("Kullanıcı adı"))];
 		for (int i = 0; i < 2; i++)
 		{
 			var (t, id, label) = tabs[i];
@@ -353,7 +362,7 @@ sealed unsafe class LoginWindow : WindowBase
 		}
 		else
 		{
-			surf.TextCentered("QR kod hazırlanıyor…", cw / 2f, by + box / 2, g.Font(13 * s, 400, Theme.Sans), Theme.Muted);
+			surf.TextCentered(T("QR kod hazırlanıyor…"), cw / 2f, by + box / 2, g.Font(13 * s, 400, Theme.Sans), Theme.Muted);
 		}
 
 		// adımlar: Steam uygulamasındaki gerçek menü adlarıyla
@@ -362,9 +371,9 @@ sealed unsafe class LoginWindow : WindowBase
 		float sy = by + box + 22 * s;
 		string[] steps =
 		[
-			"Telefonunda Steam uygulamasını aç.",
-			"Alttaki kalkan simgesine (Steam Guard) dokun.",
-			"\"QR kodu tara\"ya dokun, bu kodu okut, onayla.",
+			T("Telefonunda Steam uygulamasını aç."),
+			T("Alttaki kalkan simgesine (Steam Guard) dokun."),
+			T("\"QR kodu tara\"ya dokun, bu kodu okut, onayla."),
 		];
 		for (int i = 0; i < steps.Length; i++)
 		{
@@ -385,15 +394,15 @@ sealed unsafe class LoginWindow : WindowBase
 
 		if (step is Step.Form or Step.Busy)
 		{
-			surf.Text("Steam kullanıcı adı", pad + 2 * s, 164 * s, label, Theme.Muted);
+			surf.Text(T("Steam kullanıcı adı"), pad + 2 * s, 164 * s, label, Theme.Muted);
 			Field(UserField, focus == userEdit, "field-user");
-			surf.Text("Şifre", pad + 2 * s, 240 * s, label, Theme.Muted);
+			surf.Text(T("Şifre"), pad + 2 * s, 240 * s, label, Theme.Muted);
 			Field(PassField, focus == passEdit, "field-pass");
-			Button("login", step == Step.Busy ? "Bağlanılıyor…" : "Steam ile giriş yap", pad, 322 * s, cw - 2 * pad, 44 * s, step == Step.Form, true);
+			Button("login", step == Step.Busy ? T("Bağlanılıyor…") : T("Steam ile giriş yap"), pad, 322 * s, cw - 2 * pad, 44 * s, step == Step.Form, true);
 
 			surf.Icon(LockIcon, pad + 2 * s, 384 * s, 14 * s, Theme.Muted, 1.75f);
-			surf.Text("Şifren yalnızca Steam'e gider, Kümes kaydetmez.", pad + 22 * s, 382 * s, small, Theme.Muted);
-			surf.Text("Steam Guard onayı ya da kodu istenebilir.", pad + 22 * s, 401 * s, small, Theme.Muted);
+			surf.Text(T("Şifren yalnızca Steam'e gider, Kümes kaydetmez."), pad + 22 * s, 382 * s, small, Theme.Muted);
+			surf.Text(T("Steam Guard onayı ya da kodu istenebilir."), pad + 22 * s, 401 * s, small, Theme.Muted);
 			if (pwError != null)
 				surf.TextCentered(pwError, cw / 2f, MsgY, g.Font(12.5f * s, 400, Theme.Sans), Theme.Danger);
 			return;
@@ -401,15 +410,15 @@ sealed unsafe class LoginWindow : WindowBase
 
 		// Steam Guard
 		surf.Text("Steam Guard", pad, 164 * s, g.Font(17 * s, 700, Theme.Serif), Theme.Ink);
-		surf.Text(guardText, pad, 196 * s, g.Font(13.5f * s, 400, Theme.Sans), guardText.StartsWith("Kod yanlış") || guardText.StartsWith("Kod 5") ? Theme.Danger : Theme.Ink);
+		surf.Text(guardText, pad, 196 * s, g.Font(13.5f * s, 400, Theme.Sans), guardText == T("Kod yanlış, tekrar dene.") || guardText == T("Kod 5 karakter olmalı.") ? Theme.Danger : Theme.Ink);
 		float y = 236 * s;
 		if (step == Step.GuardWait)
 		{
-			surf.Text("Onaylayınca giriş kendiliğinden tamamlanır.", pad, 220 * s, small, Theme.Muted);
+			surf.Text(T("Onaylayınca giriş kendiliğinden tamamlanır."), pad, 220 * s, small, Theme.Muted);
 			if (canUseCode)
 			{
 				var link = g.Font(13.5f * s, 600, Theme.Sans);
-				const string text = "Kod ile giriş yap";
+				string text = T("Kod ile giriş yap");
 				var size = g.Measure(text, link);
 				surf.Text(text, pad, 252 * s, link, hover == "use-code" ? StrawHot : Theme.Straw);
 				hits.Add(("use-code", pad - 4 * s, 248 * s, size.X + 8 * s, size.Y + 8 * s, true));
@@ -419,11 +428,11 @@ sealed unsafe class LoginWindow : WindowBase
 		else if (step == Step.GuardCode)
 		{
 			Field(CodeField, focus == codeEdit, "field-code");
-			Button("send", "Kodu gönder", pad, 300 * s, cw - 2 * pad, 44 * s, true, true);
+			Button("send", T("Kodu gönder"), pad, 300 * s, cw - 2 * pad, 44 * s, true, true);
 			y = 356 * s;
 		}
 		else y = 236 * s; // kod kontrol ediliyor
-		Button("cancel", "Vazgeç", pad, y, cw - 2 * pad, 40 * s, true, false);
+		Button("cancel", T("Vazgeç"), pad, y, cw - 2 * pad, 40 * s, true, false);
 	}
 
 	void Field((float X, float Y, float W, float H) f, bool focused, string id)

@@ -13,6 +13,7 @@ sealed class Settings
 	public List<string> Accounts { get; set; } = new(); // bağlı Steam hesapları (accounts/<ad> klasörleri)
 	public string? Selected { get; set; }                // Ana Sayfa'da ve masaüstünde gösterilen tavuğun hesabı
 	public bool Demo { get; set; }                       // giriş yapmadan deneniyor (örnek tavuk)
+	public string? Language { get; set; }                // "tr", "en"; boşsa Windows'un dili
 }
 
 sealed class NotifyFlags

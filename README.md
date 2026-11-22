@@ -2,7 +2,7 @@
 
 CS2'deki evcil tavuğun Windows masaüstünde, görev çubuğunun üstünde 3D olarak yaşar. Yürür, eşelenir, uyur, pencerelerin üstüne tüner. Yemin ne zaman biteceğini de gösterir.
 
-*Your CS2 pet chicken lives on your Windows desktop, in 3D, above the taskbar. The UI is in Turkish.*
+*Your CS2 pet chicken lives on your Windows desktop, in 3D, above the taskbar. [English below.](#english)*
 
 ![Kümes: tavuk pencerelerin üstünde](docs/kumes.gif)
 
@@ -27,6 +27,7 @@ Windows "bilinmeyen yayımcı" uyarısı verirse "Ek bilgi" → "Yine de çalı�
 - Birden fazla Steam hesabı ve koleksiyon
 - CS2 açıkken tavuk kendiliğinden gizlenir
 - Ekranın yenileme hızına göre akıcı çizim, az RAM (~25 MB)
+- Türkçe ve İngilizce arayüz (Ayarlar → Dil)
 
 ![Ana sayfa](docs/ana-sayfa.png)
 
@@ -56,6 +57,20 @@ dotnet build cs/Kumes -c Release
 Exe `cs/Kumes/bin/Release/net10.0-windows/Kumes.exe` olarak çıkar. Çift tıklayıp açmak için `Kumes-baslat.vbs` de kullanılabilir.
 
 CS2 kurulumundan model çıkarmak için [Source 2 Viewer](https://github.com/ValveResourceFormat/ValveResourceFormat) komut satırı aracı gerekir. `Source2Viewer-CLI.exe` ve yanındaki dosyaları exe'nin yanındaki `tools/vrf/` klasörüne koy (geliştirirken depo kökündeki `tools/vrf/` da olur). Bu araç yoksa ve Steam'e giriş yapılmışsa, tavuk dosyaları hesapla indirilir.
+
+## English
+
+Kümes puts your CS2 pet chicken on your Windows desktop. It walks, pecks, sleeps and perches on your windows, and shows when its feed runs out.
+
+1. Download the [latest release](https://github.com/enes-topcam/kumes-desktop/releases/latest) (`Kumes-x.y.z-win-x64.zip`) and unzip it.
+2. Run `Kumes.exe`. No .NET install needed. If Windows shows "unknown publisher", click "More info" → "Run anyway" (the exe isn't signed).
+3. Sign in to Steam (QR code or username + Steam Guard), or click "Try without signing in".
+
+You need Windows 10 or 11 (64-bit) and a chicken in your CS2 inventory. The chicken model is prepared on your PC: from your CS2 install, or, without CS2, downloaded from Valve with your own Steam account (~29 MB). The UI follows your Windows language; change it in Settings → Language.
+
+Your password goes only to Steam and is never saved. Kümes connects as a separate Steam device, shows as "Playing CS2" for a few seconds and reads your chicken. It never trades, buys or sends messages. To remove it: Steam → Settings → Security → Authorized devices.
+
+Not affiliated with Valve or Steam.
 
 ## Lisans
 

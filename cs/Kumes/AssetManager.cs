@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using Kumes.Render;
 using Kumes.Steam;
 using Microsoft.Win32;
+using static Kumes.Lang;
 
 namespace Kumes;
 
@@ -287,7 +288,7 @@ static partial class AssetManager
 		int step = 0, total = Models.Count * 2;
 		foreach (var (breed, model) in Models)
 		{
-			progress($"CS2 modelleri çıkarılıyor ({++step}/{total})…");
+			progress(Tf("CS2 modelleri çıkarılıyor ({0}/{1})…", ++step, total));
 			RunCli(exe, "-i", vpk, "-f", model, "-o", Path.Combine(tmp, $"{breed}.glb"), "-d",
 				"--gltf_export_format", "glb", "--gltf_export_animations",
 				"--gltf_animation_list", string.Join(",", Animations), "--game", gameinfo);
@@ -303,7 +304,7 @@ static partial class AssetManager
 
 		foreach (var breed in Models.Keys)
 		{
-			progress($"CS2 renkleri çıkarılıyor ({++step}/{total})…");
+			progress(Tf("CS2 renkleri çıkarılıyor ({0}/{1})…", ++step, total));
 			foreach (var prefix in MaterialPrefix[breed])
 				RunCli(exe, "-i", vpk, "-f", $"materials/models/chicken/{prefix}", "-e", "vmat_c", "-o", tmp, "-d", "--game", gameinfo);
 		}
