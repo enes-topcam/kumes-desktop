@@ -20,6 +20,12 @@ public sealed record PetSummary(
 
 	static readonly Dictionary<string, string> StageNext = new() { ["Yumurta"] = "Civciv", ["Civciv"] = "Piliç", ["Piliç"] = "Tavuk" };
 
+	// Ekranda evre adı: Civciv/Piliç/Tavuk yerine 1./2./3. evre (mobildeki gibi; yumurta aynı kalır). Çevrilmiş döner.
+	public static int StageIndex(string? stage) => stage switch { "Civciv" => 1, "Piliç" => 2, "Tavuk" => 3, _ => 0 };
+	public static string StageLabel(string? stage) => StageIndex(stage) is > 0 and var i
+		? Lang.Tf("{0}. Evre", i)
+		: stage is null ? "" : Lang.T(stage);
+
 	public static PetSummary From(PetInfo p, DateTimeOffset now)
 	{
 		TimeSpan? food = p.FoodExpiresAt is { } f ? f - now : null;

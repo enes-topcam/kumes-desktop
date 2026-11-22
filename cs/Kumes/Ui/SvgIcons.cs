@@ -38,20 +38,26 @@ static class SvgIcons
 		LineJoin = LineJoin.Round, StartCap = CapStyle.Round, EndCap = CapStyle.Round, DashCap = CapStyle.Round,
 	});
 
+	// Dolgu simgesi (mobildeki IconSet): yolun başına Fill eklenir, Surface2D.Icon bunu görünce çizgi yerine doldurur
+	public const string Fill = "F";
+	public static bool IsFill(string d) => d.StartsWith(Fill, StringComparison.Ordinal);
+
 	public static ID2D1PathGeometry Geometry(string d)
 	{
 		if (cache.TryGetValue(d, out var g)) return g;
+		bool fill = IsFill(d);
 		g = Gfx2D.Shared.D2D.CreatePathGeometry();
 		using (var sink = g.Open())
 		{
-			new Parser(d, sink).Run();
+			if (fill) sink.SetFillMode(FillMode.Alternate); // even-odd: iç boşluklar delik kalsın
+			new Parser(fill ? d[Fill.Length..] : d, sink, fill).Run();
 			sink.Close();
 		}
 		cache[d] = g;
 		return g;
 	}
 
-	sealed class Parser(string d, ID2D1GeometrySink sink)
+	sealed class Parser(string d, ID2D1GeometrySink sink, bool filled = false)
 	{
 		int i;
 		bool open;
@@ -83,7 +89,7 @@ static class SvgIcons
 		void MoveTo(Vector2 p)
 		{
 			if (open) sink.EndFigure(FigureEnd.Open);
-			sink.BeginFigure(p, FigureBegin.Hollow);
+			sink.BeginFigure(p, filled ? FigureBegin.Filled : FigureBegin.Hollow);
 			open = true;
 			cur = start = p;
 		}

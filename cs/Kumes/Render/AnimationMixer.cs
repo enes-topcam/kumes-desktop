@@ -134,7 +134,17 @@ sealed class AnimationMixer
 			accS[i] /= w;
 			accR[i] = Quaternion.Normalize(accR[i]);
 		}
+		// evre şekli (kafa, kuyruk, bacak…): animasyonun üstüne kemik başına fark
+		if (Shape is { } sh)
+			for (int i = 0; i < n; i++)
+			{
+				accT[i] += sh.T[i];
+				accR[i] = Quaternion.Normalize(accR[i] * sh.R[i]);
+				accS[i] *= sh.S[i];
+			}
 	}
+
+	public PoseShape? Shape;
 
 	void Accumulate(float w)
 	{
@@ -189,6 +199,9 @@ sealed class AnimationMixer
 
 	void ComputeWorld(Matrix4x4 rootTransform)
 	{
+		// evre şekli bacakları uzatıp kısaltınca ayaklar zeminde kalsın
+		// ve toplam boy evreye göre ayarlansın (Scale)
+		if (Shape is { } gs) rootTransform = Matrix4x4.CreateScale(gs.Scale) * Matrix4x4.CreateTranslation(0, gs.GroundLift, 0) * rootTransform;
 		foreach (int i in sk.Order)
 		{
 			var local = Matrix4x4.CreateScale(accS[i]) * Matrix4x4.CreateFromQuaternion(accR[i]) * Matrix4x4.CreateTranslation(accT[i]);

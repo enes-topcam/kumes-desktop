@@ -41,6 +41,7 @@ sealed unsafe class App
 
 	MainWindow? panel;
 	byte[]? heroImage;    // seçili tavuğun portresi (Ana Sayfa), 3D modelden
+	string? heroFor;      // heroImage hangi hesabın tavuğu (hesap değişip yeni model yüklenirken eski portre gösterilmesin)
 	const int HeroSize = 320;
 	Collection? collection; // diğer tavukların portreleri (Koleksiyon)
 	static readonly string Version = typeof(App).Assembly.GetName().Version is { } v ? $"{v.Major}.{v.Minor}" : "1.0";
@@ -71,6 +72,7 @@ sealed unsafe class App
 		}
 		if (settings.Demo && accounts.Count == 0) accounts.Add(DesktopAccount.Demo()); // giriş yapmadan deniyordu
 		else settings.Demo = false;
+		if (Environment.GetEnvironmentVariable("KUMES_ORNEK") == "1") accounts.AddRange(DesktopAccount.Samples()); // geliştirme: her türden örnek
 		tray = new TrayIcon(msg.Hwnd);
 		tray.SetIcon(Brand.TrayMark());
 		tray.BalloonIcon = Brand.BalloonIcon();
@@ -130,6 +132,7 @@ sealed unsafe class App
 			msg.RunQueued();
 			if (!running) break;
 			Timers(DateTime.UtcNow);
+			TickSwitch();
 
 			// Koleksiyon sayfası açıksa tavuk portrelerini adım adım çiz (her döngüde bir adım, ilk seferde)
 			if (panel?.WantsCollection == true && collection is { Complete: false })
@@ -616,7 +619,7 @@ sealed unsafe class App
 		if (p == null) return T("Tavuk verisi bekleniyor");
 		if (!p.Found) return T("Envanterde tavuk bulunamadı");
 		var food = p.FoodExpiresAt is DateTimeOffset f ? Tf("Yem: {0}", Fmt.Duration(f - DateTimeOffset.Now)) : T("Yem: ?");
-		return $"{p.Name} ({(p.StageName is { } st ? T(st) : "?")}) | {food}";
+		return $"{p.Name} ({(p.StageName != null ? PetSummary.StageLabel(p.StageName) : "?")}) | {food}";
 	}
 
 	// tray ipucu + (açıksa) Kümes penceresi güncel durumla yeniden çizilir
@@ -633,7 +636,7 @@ sealed unsafe class App
 			a.Id, filming ? "Oyuncu" : a.DisplayName, a.Cache.Pet,
 			cs2Running && a.State is "ok" or "idle" ? "cs2" : a.State, a.Message,
 			filming ? null : a.Avatar, a.AvatarW, a.AvatarH,
-			a == Sel ? heroImage : collection?.ThumbFor(a.Cache.Pet), a == Sel ? HeroSize : Collection.ThumbSize,
+			a == Sel && heroFor == a.Id ? heroImage : collection?.ThumbFor(a.Cache.Pet), a == Sel && heroFor == a.Id ? HeroSize : Collection.ThumbSize,
 			a.Cache.History,
 			assets != null ? AssetManager.CoatName(assets, a.Cache.Pet) : null)).ToList(),
 		Sel?.Id,
@@ -643,7 +646,8 @@ sealed unsafe class App
 		extracting,
 		Version,
 		noCs2,
-		ownReady);
+		ownReady,
+		switching is { } sw ? (sw.Id, SwitchProgress) : null);
 
 	// Tanıtım çekimi komutları (WM_DEMO; sadece --cekim): 1 tırman, 2 yürü (arg: +1/-1), 3 koy (arg: x px, sağa bakar),
 	// 4 numara, 5 tavuğu gizle/göster, 6 koy (sola bakar)
@@ -699,7 +703,7 @@ sealed unsafe class App
 		switch (parts[0])
 		{
 			case "refresh": Refresh("manual", a); break;
-			case "select" when a != null: Select(a); break;
+			case "select" when a != null: SwitchAccount(a); break;
 			case "logout" when a != null: Logout(a); break;
 			case "login": OpenLogin(); break;
 			case "profile" when a?.Cache.Profile is { SteamId64: > 0 } pr: OpenShell($"https://steamcommunity.com/profiles/{pr.SteamId64}"); break;
@@ -1017,16 +1021,110 @@ sealed unsafe class App
 	}
 
 	// Doğru ırk/renk modeli yüklü değilse yükle
-	void EnsureModel(bool force = false)
+	// Model dosyası okunup dokular çözülürken (~3 sn) ana iş parçacığı donmasın: ağır kısım arka planda, hazır olunca
+	// burada GPU'ya yüklenip tavuk değişir (o sırada eski tavuk dolaşmaya devam eder). Arka arkaya hesap değiştirilirse
+	// sadece en son istenen model uygulanır.
+	string? loadingKey;
+	int modelGen;
+
+	// target: modeli yüklenecek hesap (varsayılan seçili hesap). progress: 0..1 gerçek ilerleme (model okundu, dokular
+	// çözüldü, hazır). defer: hazır olunca hemen uygulama, bekleyen olarak sakla (hesap değiştirmede bilgilerle birlikte uygulanır).
+	void EnsureModel(bool force = false, DesktopAccount? target = null, Action<float>? progress = null, bool defer = false)
 	{
-		if (assets == null) return;
+		if (assets == null) { progress?.Invoke(1); return; }
+		if (switching != null && target == null && !force) return; // hesap değişiyor: bitince Select zaten yükler
+		var who = target ?? Sel;
+		(string Model, CoatTextures Coat) r;
+		try { r = AssetManager.Resolve(assets, who?.Cache.Pet); }
+		catch (Exception e) { Log.Write($"model bulunamadı: {e}"); progress?.Invoke(1); return; }
+		var (modelPath, coat) = r;
+		var pet = who?.Cache.Pet;
+		var key = $"{modelPath}|{coat.Color}|{pet?.StageName}|{pet?.Seed}"; // evre ya da seed değişince şekil de değişir
+		var forId = who?.Id;
+		if (!force && loadingKey == null && view?.ModelKey == key)
+		{
+			// aynı model zaten yüklü (ör. iki hesapta aynı tür ve renk)
+			if (defer) pendingModel = () => heroFor = forId; else heroFor = forId;
+			progress?.Invoke(1);
+			return;
+		}
+		if (!force && progress == null && loadingKey == key) return; // aynısı zaten yükleniyor
+		loadingKey = key;
+		int gen = ++modelGen;
+		pendingModel = null;
+		var sw = Stopwatch.StartNew();
+		void Report(float p) => msg.Post(() => { if (gen == modelGen) progress?.Invoke(p); });
+		Report(0.05f);
+		Task.Run(() =>
+		{
+			var m = GlbModel.Load(modelPath);
+			Report(0.6f);
+			PetRenderer.Preload(coat);
+			Report(0.95f);
+			return m;
+		}).ContinueWith(t => msg.Post(() =>
+		{
+			if (gen != modelGen) return; // bu arada başka bir model istendi
+			loadingKey = null;
+			if (t.IsFaulted) { Log.Write($"model yüklenemedi: {t.Exception?.InnerException}"); PetRenderer.ClearPreloaded(); progress?.Invoke(1); return; }
+			void Apply()
+			{
+				ApplyModel(t.Result, coat, key, modelPath, sw);
+				heroFor = forId;
+				UpdateTray();
+			}
+			if (defer) pendingModel = Apply; else Apply();
+			progress?.Invoke(1);
+		}));
+	}
+
+	// ---- hesap değiştirme ----
+	// Yeni hesabın tavuğu hazır olana kadar eski hesap ekranda kalır; Kümes penceresinde yükleme ekranı (0-100) görünür.
+	// Hazır olunca bilgiler ve masaüstündeki tavuk birlikte değişir. Çubuk en az SwitchMinSec'de dolar (yoksa göz kırpar).
+	DesktopAccount? switching;
+	float switchLoad;     // gerçek ilerleme
+	long switchStart;
+	Action? pendingModel; // hazır ama henüz uygulanmamış model (hesap değiştirme bitince uygulanır)
+	const double SwitchMinSec = 0.5;
+
+	// Gösterilen ilerleme zamanla akar ama gerçek ilerlemenin çok önüne geçmez (bitmeden %95'i aşmaz)
+	float SwitchProgress => switching == null ? 0
+		: (float)Math.Min(switchLoad >= 1 ? 1 : Math.Min(0.95, switchLoad + 0.4), Stopwatch.GetElapsedTime(switchStart).TotalSeconds / SwitchMinSec);
+
+	void SwitchAccount(DesktopAccount a)
+	{
+		if (a == Sel && switching == null) return;
+		switching = a;
+		switchLoad = 0;
+		switchStart = Stopwatch.GetTimestamp();
+		Log.Write($"hesap değiştiriliyor: {a.Id}");
+		EnsureModel(target: a, progress: p => switchLoad = Math.Max(switchLoad, p), defer: true);
+		UpdateTray();
+	}
+
+	// her döngüde: yükleme ekranını ilerlet, bitince bilgileri ve tavuğu birlikte değiştir
+	void TickSwitch()
+	{
+		if (switching is not { } a) return;
+		if (switchLoad >= 1 && SwitchProgress >= 1)
+		{
+			switching = null;
+			var apply = pendingModel;
+			pendingModel = null;
+			if (!accounts.Contains(a)) { UpdateTray(); return; }
+			settings.Selected = a.Id; // önce seçili hesap: model uygulanırken tavuğun evre şekli yeni hesaba göre hesaplansın
+			apply?.Invoke();
+			Select(a);
+			return;
+		}
+		panel?.Update(PanelState());
+	}
+
+	void ApplyModel(GlbModel model, CoatTextures coat, string key, string modelPath, Stopwatch sw)
+	{
 		try
 		{
-			var (modelPath, coat) = AssetManager.Resolve(assets, cache.Pet);
-			var key = $"{modelPath}|{coat.Color}";
-			if (view?.ModelKey == key && !force) return;
-			var sw = Stopwatch.StartNew();
-			var model = GlbModel.Load(modelPath);
+			long bg = sw.ElapsedMilliseconds;
 			if (view == null)
 			{
 				view = new PetView(gl, model, coat, key, () => cache.Pet, StatusText);
@@ -1042,13 +1140,17 @@ sealed unsafe class App
 			if (assets != null && collection == null) collection = new Collection(gl, assets);
 			collection?.Want(accounts.Select(x => x.Cache.Pet));
 			UpdateTray();
-			Log.Write($"model yüklendi: {Path.GetFileName(modelPath)}, {Path.GetFileName(coat.Color)} ({sw.ElapsedMilliseconds} ms)");
+			Log.Write($"model yüklendi: {Path.GetFileName(modelPath)}, {Path.GetFileName(coat.Color)} ({sw.ElapsedMilliseconds} ms, ana iş parçacığında {sw.ElapsedMilliseconds - bg} ms)");
 			ApplyVisibility();
 			ScheduleTrim();
 		}
 		catch (Exception e)
 		{
 			Log.Write($"model yüklenemedi: {e}");
+		}
+		finally
+		{
+			PetRenderer.ClearPreloaded();
 		}
 	}
 }

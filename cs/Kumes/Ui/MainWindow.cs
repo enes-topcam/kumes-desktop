@@ -36,7 +36,8 @@ sealed record MainModel(
 	string? Extracting,
 	string Version,
 	bool NoCs2,  // CS2 kurulu değil: modeller çıkarılmaz, Valve'dan indirilir
-	bool ModelReady);
+	bool ModelReady,
+	(string Id, float Progress)? Switching); // hesap değiştiriliyor: yükleme ekranı
 
 [StructLayout(LayoutKind.Sequential)]
 struct MINMAXINFO { public POINT Reserved, MaxSize, MaxPosition, MinTrackSize, MaxTrackSize; }
@@ -50,12 +51,17 @@ sealed unsafe class MainWindow : WindowBase
 		Positive = 0x79CBA5FF, Error = 0xE27C86FF, Track = 0x34334AFF, Chicken = 0xE1AF74FF;
 	const string Icons = "Segoe Fluent Icons", Display = "Segoe UI Variable Display", Body = "Segoe UI Variable Text";
 	// çizgi simgeler (SvgIcons; mobille aynı set)
-	const string GHome = SvgIcons.Home, GLayers = SvgIcons.Layers, GGear = SvgIcons.Gear, GRefresh = SvgIcons.Refresh, GAdd = SvgIcons.Plus,
-		GChevron = SvgIcons.ChevronRight, GBack = SvgIcons.Back, GCalendar = SvgIcons.Calendar, GCheck = SvgIcons.CheckCircle,
-		GAlert = SvgIcons.AlertCircle, GInfo = SvgIcons.Info, GSignOut = SvgIcons.Logout, GFolder = SvgIcons.Folder, GDoc = SvgIcons.File,
-		GOpen = SvgIcons.External, GBox = SvgIcons.Box, GPower = SvgIcons.Power, GChicken = SvgIcons.Chicken, GGlobe = SvgIcons.Globe;
-	static readonly (string Id, string Label, string Glyph)[] Nav =
-		[("home", "Ana Sayfa", GHome), ("collection", "Koleksiyon", GLayers), ("settings", "Ayarlar", GGear)]; // T ile çizilir
+	// Simgeler mobil uygulamanın setinden (IconSet, dolgu). Mobil sette karşılığı olmayan üçü (klasör, belge, dünya) çizgi kalır.
+	const string Fi = SvgIcons.Fill;
+	const string GHome = Fi + IconSet.HomeOutline, GHomeOn = Fi + IconSet.HomeFilled, GLayers = Fi + IconSet.LayersOutline,
+		GLayersOn = Fi + IconSet.LayersFilled, GGear = Fi + IconSet.GearOutline, GGearOn = Fi + IconSet.GearFilled,
+		GRefresh = Fi + IconSet.Refresh, GAdd = Fi + IconSet.Plus, GChevron = Fi + IconSet.ChevronRight, GBack = Fi + IconSet.Back,
+		GCalendar = Fi + IconSet.Calendar, GCheck = Fi + IconSet.CheckCircle, GAlert = Fi + IconSet.Info, GInfo = Fi + IconSet.Info,
+		GSignOut = Fi + IconSet.Logout, GOpen = Fi + IconSet.External, GBox = Fi + IconSet.Download, GPower = Fi + IconSet.Close,
+		GChicken = Fi + IconSet.ChickenStage, GEgg = Fi + IconSet.Egg, GFeed = Fi + IconSet.Clock,
+		GFolder = SvgIcons.Folder, GDoc = SvgIcons.File, GGlobe = SvgIcons.Globe;
+	static readonly (string Id, string Label, string Glyph, string GlyphOn)[] Nav =
+		[("home", "Ana Sayfa", GHome, GHomeOn), ("collection", "Koleksiyon", GLayers, GLayersOn), ("settings", "Ayarlar", GGear, GGearOn)]; // T ile çizilir
 
 	const uint Style = WS_POPUP | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
 	readonly float dpi;
@@ -74,6 +80,7 @@ sealed unsafe class MainWindow : WindowBase
 
 	readonly List<(float X, float Y, float W, float H, string Id, bool Enabled)> items = new();
 	string? hover, pressed, focus;
+	bool acctMenu; // sol alttaki hesap menüsü açık
 	bool focusVisible, tracking;
 	float clipTop; // kaydırılan sayfada bu çizginin üstündeki öğeler tıklanmaz
 
@@ -196,7 +203,9 @@ sealed unsafe class MainWindow : WindowBase
 		clipTop = 0;
 
 		PaintSidebar();
+		if (model.Switching is { } sw) PaintSwitching(sw.Id, sw.Progress);
 		PaintChrome();
+		if (acctMenu) PaintAccountMenu();
 
 		if (focusVisible && focus != null && items.FirstOrDefault(i => i.Id == focus) is { Id: not null } fi)
 			S.StrokeRoundRect(fi.X - 3, fi.Y - 3, fi.W + 6, fi.H + 6, 10, Lavender, 2);
@@ -232,29 +241,122 @@ sealed unsafe class MainWindow : WindowBase
 		S.Text("Kümes", 62, 22, D(20, 600), Text);
 
 		float y = 86;
-		foreach (var (id, label, glyph) in Nav)
+		foreach (var (id, label, glyph, glyphOn) in Nav)
 		{
 			string nid = "nav:" + id;
 			bool active = Page == id || (id == "collection" && Page.StartsWith("detail:"));
 			if (active) S.FillRoundRect(14, y, Side - 28, 44, 12, Raised);
 			else if (Hot(nid)) S.FillRoundRect(14, y, Side - 28, 44, 12, 0xFFFFFF0A);
-			Glyph(glyph, 40, y + 22, 17, active ? Text : Muted);
+			Glyph(active ? glyphOn : glyph, 40, y + 22, 17, active ? Text : Muted);
 			S.Text(T(label), 64, y + 12, F(14.5f, active ? 600 : 400), active ? Text : Muted);
 			Item(14, y, Side - 28, 44, nid);
 			y += 52;
 		}
 
-		// altta: Steam bağlantısı ve sürüm
-		S.FillRect(20, DH - 108, Side - 40, 1, Line);
-		int n = model.Accounts.Count(a => a.State != "demo"); // demo hesabı Steam'e bağlı değil
-		bool problem = model.Accounts.Any(a => a.State is "error" or "need-login");
-		uint dot = n == 0 ? Faint : problem ? Error : Positive;
-		string steam = n == 0 ? T("Steam bağlı değil") : problem ? T("Bağlantı sorunu") : n == 1 ? T("Steam Bağlı") : Tf("{0} Steam hesabı", n);
-		if (steamBadge != null) S.DrawImage(steamBadge, 22, DH - 90, 26, 26);
-		S.FillEllipse(45, DH - 66, 4, 4, NavBg);
-		S.FillEllipse(45, DH - 66, 3, 3, dot);
-		S.Text(steam, 58, DH - 87, F(13.5f, 600), Text);
-		S.Text($"v{model.Version}", 24, DH - 46, F(12.5f), Faint);
+		// altta: seçili hesap (tıklayınca hesap değiştirme / ekleme menüsü) ve sürüm
+		S.FillRect(20, DH - 118, Side - 40, 1, Line);
+		float cy = DH - 106, chH = 54;
+		var sel = model.Accounts.FirstOrDefault(a => a.Id == model.SelectedId) ?? model.Accounts.FirstOrDefault();
+		if (sel == null)
+		{
+			// hiç hesap yok: Steam ile giriş
+			if (Hot("login")) S.FillRoundRect(12, cy, Side - 24, chH, 12, 0xFFFFFF0A);
+			if (steamBadge != null) S.DrawImage(steamBadge, 22, cy + 14, 26, 26);
+			S.Text(T("Steam bağlı değil"), 58, cy + 8, F(13.5f, 600), Text);
+			S.Text(T("Giriş yap"), 58, cy + 28, F(12.5f), Hot("login") ? Lavender : Muted);
+			Item(12, cy, Side - 24, chH, "login");
+		}
+		else
+		{
+			if (acctMenu || Hot("acct")) S.FillRoundRect(12, cy, Side - 24, chH, 12, acctMenu ? Raised : 0xFFFFFF0A);
+			AccountLine(sel, 22, cy + 11, 32, Side - 22 - 34);
+			ChromeGlyph(acctMenu ? "" : "", Side - 30, cy + chH / 2, 10, Muted);
+			Item(12, cy, Side - 24, chH, "acct");
+		}
+		S.Text($"v{model.Version}", 24, DH - 40, F(12.5f), Faint);
+	}
+
+	// Hesap değiştirme yükleme ekranı: sayfanın üstünü kaplar (tıklamalar alttaki sayfaya geçmez), ortada yeni hesabın
+	// profil fotoğrafı, tavuğunun adı ve 0-100 ilerleme çubuğu. Bitince App bilgileri ve tavuğu birlikte değiştirir.
+	void PaintSwitching(string id, float progress)
+	{
+		var a = model.Accounts.FirstOrDefault(x => x.Id == id);
+		S.FillRect(Side, 0, DW - Side, DH, Bg);
+		Item(Side, 0, DW - Side, DH, "switch-block", enabled: false);
+		if (a == null) return;
+		float cxm = Side + (DW - Side) / 2, cy = DH / 2 - 70;
+		if (a.Portrait != null) Portrait(a, cxm - 48, cy - 60, 96, 18); // yeni tavuğun portresi (koleksiyondan)
+		else Avatar(a, cxm - 36, cy - 36, 72);
+		string title = a.Pet is { Found: true } p ? p.Name ?? T("Tavuğum") : a.Name;
+		var tf = D(26, 700);
+		S.Text(title, cxm - W(title, tf) / 2, cy + 52, tf, Text);
+		string sub = Tf("{0} hesabına geçiliyor", a.Name);
+		var sf = F(14);
+		S.Text(sub, cxm - W(sub, sf) / 2, cy + 92, sf, Muted);
+		float bw = 320, by = cy + 136;
+		Bar(cxm - bw / 2, by, bw, 8, progress, Lavender);
+		string pct = Tf("%{0}", (int)Math.Round(progress * 100));
+		var pf = F(13.5f, 600);
+		S.Text(pct, cxm - W(pct, pf) / 2, by + 18, pf, Muted);
+	}
+
+	// Hesap satırı: profil fotoğrafı (durum noktasıyla), Steam adı, altında tavuğun adı ya da durum
+	void AccountLine(AccountModel a, float x, float y, float size, float right)
+	{
+		Avatar(a, x, y, size);
+		uint dot = a.State == "demo" ? Faint : a.State is "error" or "need-login" or "playing" ? Error : Positive;
+		S.FillEllipse(x + size - 3, y + size - 3, 5.5f, 5.5f, NavBg);
+		S.FillEllipse(x + size - 3, y + size - 3, 4, 4, dot);
+		float tx = x + size + 12, maxW = right - tx;
+		string sub = a.State == "need-login" ? T("Tekrar giriş gerekli")
+			: a.State == "demo" ? Tf("{0} · örnek", a.Pet?.Name ?? T("Tavuk"))
+			: a.Pet is { Found: true } p ? p.Name ?? T("Tavuğum") : a.Pet == null ? T("Henüz bilgi yok") : T("Tavuk yok");
+		S.Text(Fit(a.Name, F(13.5f, 600), maxW), tx, y - 1, F(13.5f, 600), Text);
+		S.Text(Fit(sub, F(12.5f), maxW), tx, y + 18, F(12.5f), a.State == "need-login" ? Error : Muted);
+	}
+
+	// Sığmayan metni "…" ile kısalt
+	string Fit(string text, Vortice.DirectWrite.IDWriteTextFormat f, float maxW)
+	{
+		if (W(text, f) <= maxW) return text;
+		for (int n = text.Length - 1; n > 0; n--)
+		{
+			var t = text[..n].TrimEnd() + "…";
+			if (W(t, f) <= maxW) return t;
+		}
+		return "…";
+	}
+
+	// Hesap menüsü (sol alttaki hesaba tıklayınca, onun üstünde açılır): hesaplar ve "Hesap ekle".
+	// Seçilen hesabın tavuğu hem Ana Sayfa'da hem masaüstünde gösterilir. Dışarı tıklayınca kapanır.
+	void PaintAccountMenu()
+	{
+		Item(0, 0, DW, DH, "acct-close"); // dışarıya tıklama: menüyü kapat (altındaki düğmelere geçmez)
+		var accs = model.Accounts;
+		const float rowH = 56, addH = 50, pad = 6, w = 300, x = 12;
+		float h = pad * 2 + accs.Count * rowH + addH + 1;
+		float y = DH - 106 - 8 - h;
+		S.FillRoundRect(x, y, w, h, 14, Surface);
+		S.StrokeRoundRect(x + 0.5f, y + 0.5f, w - 1, h - 1, 14, Line, 1);
+		float ry = y + pad;
+		foreach (var a in accs)
+		{
+			string id = "acct:" + a.Id;
+			bool selected = a.Id == model.SelectedId;
+			if (Hot(id)) S.FillRoundRect(x + pad, ry, w - pad * 2, rowH, 10, Raised);
+			AccountLine(a, x + 16, ry + 12, 32, x + w - 40);
+			if (selected) Glyph(GCheck, x + w - 26, ry + rowH / 2, 15, Lavender);
+			Item(x + pad, ry, w - pad * 2, rowH, id);
+			ry += rowH;
+		}
+		S.FillRect(x + 14, ry, w - 28, 1, Line);
+		ry += 1;
+		bool hot = Hot("acct-add");
+		if (hot) S.FillRoundRect(x + pad, ry + 4, w - pad * 2, addH - 8, 10, Raised);
+		S.FillRoundRect(x + 16, ry + 9, 32, 32, 16, Raised);
+		Glyph(GAdd, x + 32, ry + 25, 12, Text);
+		S.Text(T("Hesap ekle"), x + 60, ry + 15, F(13.5f, 600), hot ? Lavender : Text);
+		Item(x + pad, ry + 4, w - pad * 2, addH - 8, "acct-add");
 	}
 
 	// ---- başlık çubuğu düğmeleri ----
@@ -337,11 +439,25 @@ sealed unsafe class MainWindow : WindowBase
 		Item(x, y, w, h, id, enabled);
 	}
 
+	// Koleksiyon satırı: tür · evre · renk
 	static string Subtitle(AccountModel a)
 	{
 		var p = a.Pet!;
-		var parts = new[] { p.Breed, p.StageName is { } st ? T(st) : null, a.Coat }.Where(v => !string.IsNullOrEmpty(v));
+		var parts = new[] { p.Breed, PetSummary.StageLabel(p.StageName), a.Coat }.Where(v => !string.IsNullOrEmpty(v));
 		return string.Join(" · ", parts);
+	}
+
+	// Tavuk kartında adın altı: tür · renk (evre ayrı satırda, noktalarla)
+	static string BreedLine(AccountModel a) =>
+		string.Join(" · ", new[] { a.Pet!.Breed, a.Coat }.Where(v => !string.IsNullOrEmpty(v)));
+
+	// Evre göstergesi (mobildeki gibi): üç nokta, ulaşılan evreler dolu leylak, sonrakiler soluk; yanında "2. Evre"
+	void StageRow(string? stage, float x, float y)
+	{
+		int reached = PetSummary.StageIndex(stage);
+		for (int i = 1; i <= 3; i++)
+			S.FillEllipse(x + 5 + (i - 1) * 15, y + 10, 5, 5, i <= reached ? Lavender : (Lavender & 0xFFFFFF00) | 0x40);
+		S.Text(PetSummary.StageLabel(stage), x + 50, y, F(15), Muted);
 	}
 
 	static string ShortLeft(TimeSpan? t) => t switch
@@ -381,8 +497,9 @@ sealed unsafe class MainWindow : WindowBase
 		// kimlik
 		const float pt = 128;
 		Portrait(a, cx, y + pad, pt, 18);
-		S.Text(p.Name ?? T("Tavuğum"), cx + pt + 24, y + pad + 32, D(34, 700), Text);
-		S.Text(Subtitle(a), cx + pt + 26, y + pad + 80, F(15.5f), Muted);
+		S.Text(p.Name ?? T("Tavuğum"), cx + pt + 24, y + pad + 18, D(34, 700), Text);
+		S.Text(BreedLine(a), cx + pt + 26, y + pad + 66, F(15.5f), Muted);
+		StageRow(p.StageName, cx + pt + 26, y + pad + 94);
 		if (a.State == "need-login") Pill(cr, y + pad + 4, T("Giriş gerekli"), Error);
 		else if (a.State == "demo") Pill(cr, y + pad + 4, "Demo", Lavender);
 		else Pill(cr, y + pad + 4, T("Takipte"), Positive);
@@ -425,7 +542,8 @@ sealed unsafe class MainWindow : WindowBase
 		if (s.NextStage == null) { stageLabel = T("Gelişim"); stageValue = T("Tamamlandı"); }
 		else
 		{
-			stageLabel = Tf("{0} olmasına", T(s.NextStage));
+			stageLabel = Tf("{0}. evreye kalan", PetSummary.StageIndex(s.NextStage));
+			if (PetSummary.StageIndex(s.NextStage) == 0) stageLabel = Tf("{0} olmasına", T(s.NextStage)); // yumurtadan çıkış
 			stageValue = s.NextStageLeft is { } n ? (n > TimeSpan.Zero ? Fmt.DurationLong(n) : T("Bugün")) : T("Bilinmiyor");
 		}
 		float mw = (cr - cx - gap) / 2;
@@ -457,12 +575,12 @@ sealed unsafe class MainWindow : WindowBase
 		var p = a.Pet!;
 		var events = new List<(DateTimeOffset At, string Text, string Icon)>();
 		var hist = a.History.ToList();
-		foreach (var f in PetStats.Feedings(hist)) events.Add((f.SeenAt, Tf("Yem yenilendi (+{0} gün)", Math.Round(f.Added.TotalDays)), SvgIcons.Bowl));
+		foreach (var f in PetStats.Feedings(hist)) events.Add((f.SeenAt, Tf("Yem yenilendi (+{0} gün)", Math.Round(f.Added.TotalDays)), GFeed));
 		for (int i = 1; i < hist.Count; i++)
 			if (hist[i].Stage != null && hist[i - 1].Stage != null && hist[i].Stage != hist[i - 1].Stage)
-				events.Add((hist[i].At, Tf("{0} oldu", T(hist[i].Stage!)), GChicken));
+				events.Add((hist[i].At, Tf("{0} oldu", PetSummary.StageLabel(hist[i].Stage)), GChicken));
 		var rows = events.OrderByDescending(e => e.At).Take(12).Select(e => (e.Text, When: Fmt.When(e.At), e.Icon)).ToList();
-		if (p.HatchedAt is { } hatched) rows.Add((T("Yumurtadan çıktı"), Fmt.Day(hatched), SvgIcons.Egg));
+		if (p.HatchedAt is { } hatched) rows.Add((T("Yumurtadan çıktı"), Fmt.Day(hatched), GEgg));
 		rows.Insert(0, (T("Bilgiler güncellendi"), Fmt.When(p.FetchedAt), GRefresh));
 		if (rows.Count == 0) return y;
 
@@ -588,7 +706,7 @@ sealed unsafe class MainWindow : WindowBase
 		if (model.Accounts.Count > 1)
 		{
 			if (a.Id == model.SelectedId) { S.Text(T("Ana Sayfada ve masaüstünde bu tavuk gösteriliyor."), X0 + 4, y + 2, F(13), Muted); y += 32; }
-			else { Button(X0, y, 240, 40, "", T("Ana Sayfada göster"), "select:" + a.Id, primary: true); y += 56; }
+			else { Button(X0, y, 240, 40, "", T("Bu hesaba geç"), "select:" + a.Id, primary: true); y += 56; }
 		}
 
 		y = History(a, y);
@@ -781,6 +899,20 @@ sealed unsafe class MainWindow : WindowBase
 			case "max": ShowWindow(Hwnd, IsZoomed(Hwnd) ? SW_RESTORE : 3 /* SW_MAXIMIZE */); return;
 			case "close": PostMessageW(Hwnd, WM_CLOSE, 0, 0); return;
 		}
+		switch (id)
+		{
+			case "acct": acctMenu = !acctMenu; Paint(); return;
+			case "acct-close": acctMenu = false; Paint(); return;
+			case "acct-add": acctMenu = false; Paint(); Clicked?.Invoke("login"); return;
+		}
+		if (id.StartsWith("acct:"))
+		{
+			// hesap değiştir: Ana Sayfa'da ve masaüstünde bu hesabın tavuğu
+			acctMenu = false;
+			Paint();
+			if (id[5..] != model.SelectedId || model.Switching != null) Clicked?.Invoke("select:" + id[5..]);
+			return;
+		}
 		if (id.StartsWith("nav:"))
 		{
 			Page = id[4..];
@@ -897,7 +1029,10 @@ sealed unsafe class MainWindow : WindowBase
 					case VK_RETURN or VK_SPACE:
 						if (focus != null && items.Any(i => i.Id == focus && i.Enabled)) { focusVisible = true; Activate(focus); }
 						return 0;
-					case VK_ESCAPE: PostMessageW(Hwnd, WM_CLOSE, 0, 0); return 0;
+					case VK_ESCAPE:
+						if (acctMenu) { acctMenu = false; Paint(); return 0; }
+						PostMessageW(Hwnd, WM_CLOSE, 0, 0);
+						return 0;
 				}
 				return null;
 			case WM_ENTERSIZEMOVE:

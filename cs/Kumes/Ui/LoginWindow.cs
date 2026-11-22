@@ -16,7 +16,7 @@ sealed unsafe class LoginWindow : WindowBase
 {
 	const uint Style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_CLIPCHILDREN;
 	const uint FieldBg = 0x1B1C29FFu, TabBg = 0x181925FFu, TabOn = 0x2C2A3DFFu, StrawHot = 0xCDB9F4FFu, ButtonOff = 0x3A3850FFu;
-	const string LockIcon = "M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z M7 11V7a5 5 0 0 1 10 0v4";
+	const string LockIcon = SvgIcons.Fill + IconSet.Privacy; // mobildeki kilit simgesi
 	const int IDC_IBEAM = 32513;
 
 	readonly float s;

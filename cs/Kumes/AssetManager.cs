@@ -18,7 +18,7 @@ static partial class AssetManager
 {
 	// Animasyon listesi değişince artır -> otomatik yeniden çıkarılır. Biçim Electron'unkiyle (5) aynı;
 	// Electron'un klasörü (daha az animasyonla) yedek olarak kullanılabilir.
-	const int ManifestVersion = 8; // v8: civciv modeli (gövde + tüy katmanı)
+	const int ManifestVersion = 9; // v8: civciv modeli (gövde + tüy katmanı); v9: evre şekli pozları
 	const int MinUsableVersion = 5;
 
 	public static string OwnDir => Path.Combine(Store.DataDir, "cs2-assets");
@@ -57,6 +57,8 @@ static partial class AssetManager
 		"chick_feed01",
 		// v7 (test): tavuğu boyunun 3-4 katı zıplatanlar; oynarken pencere tavuğu takip ediyor
 		"chick_trick02", "chick_trick05", "chick_trick07",
+		// v9: evre şekli pozları (2. evre büyük kafa, kısa kuyruk…; Render/PoseShape)
+		.. PoseShape.SequenceNames,
 	];
 
 	public static AssetSet? Load(string dir, int minVersion = MinUsableVersion)

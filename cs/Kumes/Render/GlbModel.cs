@@ -49,6 +49,8 @@ sealed class GlbModel
 	public Skeleton Skeleton = new();
 	public MeshData Mesh = new();
 	public Dictionary<string, Clip> Clips = new();
+	// Evre şekli pozları (chicken_head_min/max…): tek karelik, kemik başına fark (PoseShape bunları karıştırır)
+	public Dictionary<string, Clip> Poses = new();
 
 	public static GlbModel Load(string path)
 	{
@@ -62,8 +64,10 @@ sealed class GlbModel
 
 	sealed class Reader(JsonElement root, ReadOnlyMemory<byte> bin)
 	{
-		readonly JsonElement accessors = root.GetProperty("accessors");
-		readonly JsonElement views = root.GetProperty("bufferViews");
+		// Diziler bir kere listeye çevrilir: JsonElement'te nesne dizisine sıra numarasıyla erişmek baştan saymak demek
+		// (binlerce animasyon kanalında karesel; 44 MB'lık modelde okuma ~3,3 sn sürüyordu)
+		readonly JsonElement[] accessors = root.GetProperty("accessors").EnumerateArray().ToArray();
+		readonly JsonElement[] views = root.GetProperty("bufferViews").EnumerateArray().ToArray();
 
 		static int Comps(string type) => type switch
 		{
@@ -139,8 +143,8 @@ sealed class GlbModel
 
 		void ReadNodes(Skeleton sk)
 		{
-			var nodes = root.GetProperty("nodes");
-			int n = nodes.GetArrayLength();
+			var nodes = root.GetProperty("nodes").EnumerateArray().ToArray();
+			int n = nodes.Length;
 			sk.Count = n;
 			sk.Names = new string[n];
 			sk.Parent = Enumerable.Repeat(-1, n).ToArray();
@@ -228,12 +232,14 @@ sealed class GlbModel
 			foreach (var anim in anims.EnumerateArray())
 			{
 				var full = anim.GetProperty("name").GetString() ?? "";
-				// sadece dünya/arayüz animasyonları (birinci şahıs kopyalarını atla)
-				if (!full.Contains("/world/") && !full.Contains("/ui/")) continue;
+				bool pose = PoseShape.IsPose(full);
+				// sadece dünya/arayüz animasyonları (birinci şahıs kopyalarını atla) ve evre şekli pozları
+				if (!pose && !full.Contains("/world/") && !full.Contains("/ui/")) continue;
+				if (pose && m.Poses.ContainsKey(full)) continue;
 				var name = full[(full.LastIndexOf('/') + 1)..];
 				if (m.Clips.ContainsKey(name)) continue;
 
-				var samplers = anim.GetProperty("samplers");
+				var samplers = anim.GetProperty("samplers").EnumerateArray().ToArray();
 				var list = new List<Channel>();
 				float duration = 0;
 				foreach (var ch in anim.GetProperty("channels").EnumerateArray())
@@ -250,11 +256,13 @@ sealed class GlbModel
 						Values = Floats(s.GetProperty("output").GetInt32()),
 					};
 					if (c.Times.Length > 0) duration = Math.Max(duration, c.Times[^1]);
-					if (path == 0) Sanitize(c, rootMotion, rootBone);
+					if (path == 0 && !pose) Sanitize(c, rootMotion, rootBone);
 					CollapseConstant(c);
 					list.Add(c);
 				}
-				m.Clips[name] = new Clip { Name = name, Duration = duration, Channels = list.ToArray() };
+				var clip = new Clip { Name = pose ? full : name, Duration = duration, Channels = list.ToArray() };
+				if (pose) m.Poses[full] = clip;
+				else m.Clips[name] = clip;
 			}
 		}
 

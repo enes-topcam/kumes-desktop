@@ -84,7 +84,7 @@ static class Strings
 		["Henüz bilgi alınmadı."] = "No info yet.",
 		["Bu hesabın CS2 envanterinde tavuk ya da yumurta yok."] = "This account has no chicken or egg in its CS2 inventory.",
 		["Ana Sayfada ve masaüstünde bu tavuk gösteriliyor."] = "This chicken is shown on Home and on your desktop.",
-		["Ana Sayfada göster"] = "Show on Home",
+		["Bu hesaba geç"] = "Switch to this account",
 		["Örnek tavuk (giriş yapmadan deneniyor)"] = "Sample chicken (trying without signing in)",
 		["Steam hesabı: {0}"] = "Steam account: {0}",
 
@@ -262,5 +262,9 @@ static class Strings
 		["Sadece ilk açılışta, yaklaşık 1 dakika sürer."] = "Only on first launch, takes about a minute.",
 		["Bu pencereyi kapatabilirsin, arka planda sürer."] = "You can close this window, it continues in the background.",
 		["CS2 dosyaları okunamadı, tekrar dene."] = "Couldn't read CS2 files, try again.",
+		["Tavuk yok"] = "No chicken",
+		["{0} · örnek"] = "{0} · sample",
+		["{0}. evreye kalan"] = "Until stage {0}",
+		["{0} hesabına geçiliyor"] = "Switching to {0}",
 	};
 }

@@ -31,9 +31,13 @@ sealed unsafe class PetRenderer : IDisposable
 	readonly int indexCount, jointCount;
 	readonly int uBones, uViewProj, uShadow;
 
-	public PetRenderer(GL gl, int size, GlbModel model, CoatTextures coat)
+	readonly IReadOnlyDictionary<string, ImageResult>? decoded;
+
+	// decoded: arka planda çözülmüş dokular (Decode); yoksa dosyadan burada çözülür
+	public PetRenderer(GL gl, int size, GlbModel model, CoatTextures coat, IReadOnlyDictionary<string, ImageResult>? decoded = null)
 	{
 		this.gl = gl;
+		this.decoded = decoded;
 		this.size = size;
 		var mesh = model.Mesh;
 		jointCount = model.Skeleton.Joints.Length;
@@ -200,9 +204,32 @@ sealed unsafe class PetRenderer : IDisposable
 		return p;
 	}
 
+	// Arka planda önceden çözülmüş dokular (PNG çözmek yavaş: model değişirken ana iş parçacığı donmasın).
+	// Preload arka planda doldurur, LoadTexture önce buraya bakar; model yüklenince ClearPreloaded ile boşaltılır.
+	static readonly System.Collections.Concurrent.ConcurrentDictionary<string, ImageResult> preloaded = new(StringComparer.OrdinalIgnoreCase);
+
+	public static void Preload(CoatTextures coat)
+	{
+		foreach (var (p, img) in Decode(coat)) preloaded[p] = img;
+	}
+
+	// Bir rengin dokularını çöz (her iş parçacığında çağrılabilir; GL kullanmaz)
+	public static Dictionary<string, ImageResult> Decode(CoatTextures coat)
+	{
+		var d = new Dictionary<string, ImageResult>(StringComparer.OrdinalIgnoreCase);
+		foreach (var p in new[] { coat.Color, coat.Normal, coat.Ao, coat.FurColor, coat.FurAlpha })
+			if (p != null && !d.ContainsKey(p))
+				d[p] = ImageResult.FromMemory(File.ReadAllBytes(p), ColorComponents.RedGreenBlueAlpha);
+		return d;
+	}
+
+	public static void ClearPreloaded() => preloaded.Clear();
+
 	uint LoadTexture(string path, bool srgb)
 	{
-		var img = ImageResult.FromMemory(File.ReadAllBytes(path), ColorComponents.RedGreenBlueAlpha);
+		var img = decoded != null && decoded.TryGetValue(path, out var dec) ? dec
+			: preloaded.TryGetValue(path, out var pre) ? pre
+			: ImageResult.FromMemory(File.ReadAllBytes(path), ColorComponents.RedGreenBlueAlpha);
 		uint t = gl.GenTexture();
 		gl.BindTexture(TextureTarget.Texture2D, t);
 		fixed (byte* p = img.Data)

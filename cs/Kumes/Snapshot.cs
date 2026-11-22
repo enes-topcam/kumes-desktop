@@ -28,11 +28,23 @@ static unsafe class Snapshot
 		var pet = args.Length > 6 && args[6] == "chick"
 			? new PetInfo(true, Kind: "chick", StageName: "Civciv")
 			: DesktopAccount.SelectedPet() ?? Store.ImportElectronPet();
+		// KUMES_PET="Catalana:7": tür ve renk numarası (manifest styles)
+		if (Environment.GetEnvironmentVariable("KUMES_PET") is { Length: > 0 } kp && kp.Split(':') is [var breed, var style])
+			pet = new PetInfo(true, Breed: breed, Kind: "chicken", StageName: "Tavuk", Style: uint.Parse(style));
 		var (modelPath, coat) = AssetManager.Resolve(set, pet);
 		using var gl = new GlContext();
 		var model = GlbModel.Load(modelPath);
 		using var renderer = new PetRenderer(gl.Gl, size, model, coat);
 		var mixer = new AnimationMixer(model.Skeleton);
+		// KUMES_SHAPE: evre şekli denemesi. "adult" / "adolescent" ya da "head=0.9,legs=0.2,…" (özellik=değer)
+		if (Environment.GetEnvironmentVariable("KUMES_SHAPE") is { Length: > 0 } sh)
+			mixer.Shape = sh switch
+			{
+				"adult" or "adolescent" => PoseShape.For(model, new PetInfo(true, Kind: "chicken", StageName: sh == "adult" ? "Tavuk" : "Piliç",
+					Seed: uint.TryParse(Environment.GetEnvironmentVariable("KUMES_SEED"), out var sd) ? sd : 7)),
+				_ => PoseShape.Build(model, sh.Split(',').Select(kv => kv.Split('='))
+					.ToDictionary(kv => kv[0], kv => float.Parse(kv[1], System.Globalization.CultureInfo.InvariantCulture))),
+			};
 		if (!model.Clips.TryGetValue(clipName, out var clip)) throw new ArgumentException("klip yok: " + clipName);
 		var layer = mixer.Play(clip, false);
 		layer.Weight = 1;

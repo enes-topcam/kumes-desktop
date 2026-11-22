@@ -23,6 +23,9 @@ sealed unsafe class Collection
 	readonly Dictionary<string, GlbModel> models = new();
 	Task<GlbModel>? loading;
 	string? loadingBreed;
+	// sıradaki rengin dokuları arka planda çözülür (PNG çözmek yavaş, Koleksiyon sayfası takılmasın)
+	Task<Dictionary<string, StbImageSharp.ImageResult>>? decoding;
+	string? decodingPath;
 	readonly Dictionary<string, byte[]> thumbs = new(); // yüklenmiş küçük resimler (düz alfa BGRA)
 
 	public string Dir => Store.File("collection");
@@ -93,9 +96,20 @@ sealed unsafe class Collection
 		{
 			var coat = set.Manifest.RootElement.GetProperty("coats").GetProperty(next.Breed).GetProperty(next.Coat);
 			string? P(string k) => coat.TryGetProperty(k, out var v) && v.GetString() is string s ? Path.Combine(set.Dir, s) : null;
-			using var r = new PetRenderer(gl.Gl, ThumbSize, model, new CoatTextures(P("color")!, P("normal"), P("ao"), P("furColor"), P("furAlpha")));
+			var textures = new CoatTextures(P("color")!, P("normal"), P("ao"), P("furColor"), P("furAlpha"));
+			if (decodingPath != next.Path)
+			{
+				decodingPath = next.Path;
+				decoding = Task.Run(() => PetRenderer.Decode(textures));
+				return true;
+			}
+			if (decoding is { IsCompleted: false }) return true;
+			var decoded = decoding is { IsCompletedSuccessfully: true } ? decoding.Result : null;
+			decoding = null;
+			decodingPath = null;
+			using var r = new PetRenderer(gl.Gl, ThumbSize, model, textures, decoded);
 			r.UseHeroLighting();
-			var mixer = new AnimationMixer(model.Skeleton);
+			var mixer = new AnimationMixer(model.Skeleton) { Shape = PoseShape.For(model, null) }; // yetişkin, ortalama şekil
 			if (model.Clips.TryGetValue("chick_idle01", out var clip)) { var l = mixer.Play(clip, false); l.Weight = 1; l.Time = 0.5f; }
 			mixer.Update(0, Matrix4x4.CreateRotationY(0.85f));
 			var raw = new byte[ThumbSize * ThumbSize * 4];

@@ -22,10 +22,11 @@ sealed class DesktopAccount
 	public const string DemoId = "demo";
 	public bool IsDemo { get; }
 
-	DesktopAccount(PetCache cache)
+	DesktopAccount(PetCache cache, string id = DemoId, string? sampleName = null)
 	{
-		Id = DemoId;
+		Id = id;
 		IsDemo = true;
+		this.sampleName = sampleName;
 		Store = new TokenStore(Path.Combine(Dir, "steam-session.bin"));
 		Steam = new SteamService(Store, DeviceName, SteamService.DesktopLoginId);
 		Cache = cache;
@@ -57,7 +58,29 @@ sealed class DesktopAccount
 	public int AvatarW, AvatarH;
 
 	public bool LoggedIn => IsDemo || Store.Exists;
-	public string DisplayName => IsDemo ? "Demo" : Cache.Profile?.PersonaName ?? Id;
+	readonly string? sampleName;
+	public string DisplayName => IsDemo ? sampleName ?? "Demo" : Cache.Profile?.PersonaName ?? Id;
+
+	// Geliştirme (KUMES_ORNEK=1): her türden birer örnek tavuk, koleksiyonda türleri ve renkleri denemek için.
+	// Demo gibi: Steam'e bağlanmaz, diske yazılmaz. Style, manifest'teki renk numarası (styles.<tür>).
+	public static IEnumerable<DesktopAccount> Samples()
+	{
+		var now = DateTimeOffset.Now;
+		DesktopAccount Make(string id, string label, string name, string breed, string kind, uint level, string stage, uint style, int foodDays, int ageDays)
+		{
+			var pet = new PetInfo(true, Name: name, PetId: 4, Breed: breed, Kind: kind, Level: level, StageName: stage,
+				FoodExpiresAt: now + TimeSpan.FromDays(foodDays), NextUpgradeAt: level < 3 ? now + TimeSpan.FromDays(5) : null,
+				HatchedAt: now - TimeSpan.FromDays(ageDays), Style: style);
+			var cache = new PetCache { Pet = pet };
+			PetStats.Add(cache.History, pet);
+			return new DesktopAccount(cache, id, label);
+		}
+		yield return Make("ornek_silkie", "Örnek Silkie", "Kırmızı", "Silkie", "chicken", 3, "Tavuk", 5, 12, 70);
+		yield return Make("ornek_silkie2", "Örnek Silkie (2. evre)", "Kırmızı Piliç", "Silkie", "chicken", 2, "Piliç", 5, 18, 25);
+		yield return Make("ornek_catalana", "Örnek Kataloniya", "Mavi", "Catalana", "chicken", 3, "Tavuk", 7, 25, 90);
+		yield return Make("ornek_polish", "Örnek Polonya", "Pembe", "Polish", "chicken", 2, "Piliç", 9, 4, 30);
+		yield return Make("ornek_chick", "Örnek civciv", "Sarı", "Silkie", "chick", 1, "Civciv", 0, 30, 5);
+	}
 
 	// Hesap adı klasör adı olur (kaldırınca klasör silinir): Steam hesap adları gibi sadece harf, rakam, alt çizgi
 	public static bool ValidId(string id) => id.Length is > 0 and <= 64 && id.All(c => c is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '_');

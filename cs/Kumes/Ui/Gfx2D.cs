@@ -225,7 +225,8 @@ sealed unsafe class Surface2D : IDisposable
 	{
 		var old = RT.Transform;
 		RT.Transform = Matrix3x2.CreateScale(size / 24f) * Matrix3x2.CreateTranslation(x, y) * old;
-		RT.DrawGeometry(SvgIcons.Geometry(d), Brush(rgba), width, SvgIcons.Round);
+		if (SvgIcons.IsFill(d)) RT.FillGeometry(SvgIcons.Geometry(d), Brush(rgba));
+		else RT.DrawGeometry(SvgIcons.Geometry(d), Brush(rgba), width, SvgIcons.Round);
 		RT.Transform = old;
 	}
 

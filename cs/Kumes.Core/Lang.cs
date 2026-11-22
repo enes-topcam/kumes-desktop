@@ -15,6 +15,7 @@ public static class Lang
 		["Civciv"] = "Chick",
 		["Piliç"] = "Young chicken",
 		["Tavuk"] = "Chicken",
+		["{0}. Evre"] = "Stage {0}",
 		["Tavuğum"] = "My chicken",
 
 		// ortak kod: Steam hataları (SteamException.Message ekranda gösterilir)

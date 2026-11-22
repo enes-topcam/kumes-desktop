@@ -69,6 +69,7 @@ sealed unsafe class PetView : IDisposable
 		this.model = model; // köşe verisi tutulur: aynı modelden Kümes penceresi için büyük resim de çizilir
 		this.coat = coat;
 		animator = new PetAnimator(model);
+		animator.Mixer.Shape = PoseShape.For(model, pet()); // evre şekli
 		wa = GetWorkArea();
 		Behavior = new PetBehavior(animator, s, () => this.pet()?.FoodExpiresAt, WorldW * 0.75f);
 
@@ -94,6 +95,7 @@ sealed unsafe class PetView : IDisposable
 		this.model = model;
 		this.coat = coat;
 		animator = new PetAnimator(model);
+		animator.Mixer.Shape = PoseShape.For(model, pet()); // evre şekli
 		Behavior.SetAnimator(animator);
 		ModelKey = modelKey;
 		hasPending = false;
@@ -104,7 +106,7 @@ sealed unsafe class PetView : IDisposable
 	{
 		using var r = new PetRenderer(gl.Gl, px, model, coat);
 		r.UseHeroLighting();
-		var mixer = new AnimationMixer(model.Skeleton);
+		var mixer = new AnimationMixer(model.Skeleton) { Shape = PoseShape.For(model, pet()) };
 		if (model.Clips.TryGetValue("chick_idle01", out var clip))
 		{
 			var l = mixer.Play(clip, false);
@@ -120,7 +122,7 @@ sealed unsafe class PetView : IDisposable
 	// Tray simgesi için tavuğun küçük resmi (32x32, düz alfa BGRA)
 	public byte[] RenderIcon(int iconSize)
 	{
-		var mixer = new AnimationMixer(model.Skeleton);
+		var mixer = new AnimationMixer(model.Skeleton) { Shape = PoseShape.For(model, pet()) };
 		if (model.Clips.TryGetValue("chick_idle01", out var clip))
 		{
 			var l = mixer.Play(clip, false);
@@ -548,12 +550,12 @@ sealed unsafe class PetView : IDisposable
 		{
 			title = Tf("🌱 {0} · Büyüme", p.Name);
 			StageNext.TryGetValue(p.StageName ?? "", out var next);
-			if (p.NextUpgradeAt is not DateTimeOffset n) { main = T("Tam büyüdü"); sub = p.StageName is { } st ? T(st) : ""; }
+			if (p.NextUpgradeAt is not DateTimeOffset n) { main = T("Tam büyüdü"); sub = PetSummary.StageLabel(p.StageName); }
 			else
 			{
 				var left = n - DateTimeOffset.Now;
 				main = left > TimeSpan.Zero ? Tf("{0} sonra", Fmt.Duration(left)) : T("yakında");
-				sub = Fmt.Date(n) + (next != null ? $" · {T(p.StageName!)} → {T(next)}" : "");
+				sub = Fmt.Date(n) + (next != null ? $" · {PetSummary.StageLabel(p.StageName)} → {PetSummary.StageLabel(next)}" : "");
 			}
 		}
 		var bar = FoodBar();
