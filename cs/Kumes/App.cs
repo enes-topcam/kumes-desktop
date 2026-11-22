@@ -834,6 +834,7 @@ sealed unsafe class App
 
 	void CheckNotifications(DesktopAccount a)
 	{
+		CheckGrowth(a);
 		if (a.IsDemo || a.Cache.Pet is not { Found: true, FoodExpiresAt: DateTimeOffset f } p) return;
 		var remaining = f - DateTimeOffset.Now;
 		var key = f.ToUnixTimeMilliseconds().ToString();
@@ -864,6 +865,21 @@ sealed unsafe class App
 			a.Cache.Notified = new() { [key] = flags }; // sadece güncel yem dönemini tut
 			a.Save();
 		}
+	}
+
+	// Büyüme süresi doldu ama evre değişmedi: oyun evreyi oyuncu CS2'ye girince değiştiriyor (22 Kasım 2026, denendi).
+	// Her evre geçişi için bir kere haber ver; CS2 kapanınca Kümes zaten güncelliyor, yeni evre kendiliğinden gelir.
+	void CheckGrowth(DesktopAccount a)
+	{
+		if (a.IsDemo || a.Cache.Pet is not { Found: true, NextUpgradeAt: DateTimeOffset n } p || n > DateTimeOffset.Now) return;
+		long key = n.ToUnixTimeMilliseconds();
+		if (a.Cache.GrowNotified == key) return;
+		var summary = PetSummary.From(p, DateTimeOffset.Now);
+		if (PetSummary.StageIndex(summary.NextStage) is not (> 0 and var next)) return;
+		tray.Notify(Tf("{0} büyümeye hazır", p.Name), Tf("CS2'ye girince {0}. evreye geçer.", next));
+		Log.Write($"{a.Id}: büyümeye hazır ({next}. evre), bildirim gönderildi");
+		a.Cache.GrowNotified = key;
+		a.Save();
 	}
 
 	// ---------- CS2 modelleri ----------

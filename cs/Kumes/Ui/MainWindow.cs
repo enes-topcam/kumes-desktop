@@ -544,7 +544,10 @@ sealed unsafe class MainWindow : WindowBase
 		{
 			stageLabel = Tf("{0}. evreye kalan", PetSummary.StageIndex(s.NextStage));
 			if (PetSummary.StageIndex(s.NextStage) == 0) stageLabel = Tf("{0} olmasına", T(s.NextStage)); // yumurtadan çıkış
-			stageValue = s.NextStageLeft is { } n ? (n > TimeSpan.Zero ? Fmt.DurationLong(n) : T("Bugün")) : T("Bilinmiyor");
+			stageValue = s.NextStageLeft is { } n ? (n > TimeSpan.Zero ? Fmt.DurationLong(n) : T("CS2'ye girince geçer")) : T("Bilinmiyor");
+			// süre doldu ama evre değişmedi: oyun evreyi oyuncu CS2'ye girince değiştiriyor (22 Kasım 2026, denendi)
+			if (s.NextStageLeft is { } r && r <= TimeSpan.Zero && PetSummary.StageIndex(s.NextStage) > 0)
+				stageLabel = Tf("{0}. evreye hazır", PetSummary.StageIndex(s.NextStage));
 		}
 		float mw = (cr - cx - gap) / 2;
 		Metric(cx, metricY, mw, metricH, GChicken, stageLabel, stageValue);

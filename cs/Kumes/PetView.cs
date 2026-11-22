@@ -554,8 +554,17 @@ sealed unsafe class PetView : IDisposable
 			else
 			{
 				var left = n - DateTimeOffset.Now;
-				main = left > TimeSpan.Zero ? Tf("{0} sonra", Fmt.Duration(left)) : T("yakında");
-				sub = Fmt.Date(n) + (next != null ? $" · {PetSummary.StageLabel(p.StageName)} → {PetSummary.StageLabel(next)}" : "");
+				if (left > TimeSpan.Zero)
+				{
+					main = Tf("{0} sonra", Fmt.Duration(left));
+					sub = Fmt.Date(n) + (next != null ? $" · {PetSummary.StageLabel(p.StageName)} → {PetSummary.StageLabel(next)}" : "");
+				}
+				else
+				{
+					// süre doldu ama evre değişmedi: oyun evreyi oyuncu CS2'ye girince değiştiriyor
+					main = T("Büyümeye hazır");
+					sub = next != null ? Tf("CS2'ye girince {0} olur", PetSummary.StageLabel(next)) : T("CS2'ye girince büyür");
+				}
 			}
 		}
 		var bar = FoodBar();

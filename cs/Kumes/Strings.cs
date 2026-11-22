@@ -239,7 +239,6 @@ static class Strings
 		["🌱 {0} · Büyüme"] = "🌱 {0} · Growth",
 		["Tam büyüdü"] = "Fully grown",
 		["{0} sonra"] = "in {0}",
-		["yakında"] = "soon",
 		["Tavuk modeli indirilsin mi?"] = "Download the chicken model?",
 		["Valve'ın sunucusundan indirilmeli."] = "need to be downloaded from Valve's servers.",
 		["Yaklaşık {0} MB, sadece bir kere iner."] = "About {0} MB, downloaded only once.",
@@ -266,5 +265,12 @@ static class Strings
 		["{0} · örnek"] = "{0} · sample",
 		["{0}. evreye kalan"] = "Until stage {0}",
 		["{0} hesabına geçiliyor"] = "Switching to {0}",
+		["CS2'ye girince geçer"] = "Open CS2 to grow",
+		["{0}. evreye hazır"] = "Ready for stage {0}",
+		["Büyümeye hazır"] = "Ready to grow",
+		["CS2'ye girince {0} olur"] = "Becomes {0} when you open CS2",
+		["CS2'ye girince büyür"] = "Grows when you open CS2",
+		["{0} büyümeye hazır"] = "{0} is ready to grow",
+		["CS2'ye girince {0}. evreye geçer."] = "It moves to stage {0} when you open CS2.",
 	};
 }

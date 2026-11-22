@@ -27,6 +27,7 @@ sealed class PetCache
 {
 	public PetInfo? Pet { get; set; }
 	public Dictionary<string, NotifyFlags> Notified { get; set; } = new(); // yem bitiş zamanı -> bildirimler
+	public long? GrowNotified { get; set; }                                 // "büyümeye hazır" bildirimi bu evre geçiş zamanı için gitti (unix ms)
 	public SteamProfile? Profile { get; set; }                              // Steam'deki görünen ad, profil fotoğrafı
 	public List<FoodSample> History { get; set; } = new();                  // ölçüm geçmişi (tavuk detayındaki Geçmiş)
 }
