@@ -38,8 +38,8 @@ Kaldırmak için: Ayarlar → Uygulamalar → Kümes. Yeni sürümü aynı şeki
 
 Pakette Valve'a ait hiçbir dosya yok. İlk açılışta model, renkler ve animasyonlar senin bilgisayarında hazırlanır:
 
-- **CS2 kuruluysa:** Dosyalar kendi CS2 kurulumundan çıkarılır (yaklaşık 1 dakika).
-- **CS2 kurulu değilse:** Giriş yaptıktan ya da "Giriş yapmadan dene"ye bastıktan sonra izin sorulur. "İndir" dersen sadece tavuk dosyaları (~110 MB) Valve'ın içerik sunucusundan bir kere indirilir. Oyunun tamamı inmez, Steam hesabı da gerekmez.
+- **CS2 kuruluysa:** Dosyalar kendi CS2 kurulumundan çıkarılır (yaklaşık 20 saniye).
+- **CS2 kurulu değilse:** Giriş yaptıktan ya da "Giriş yapmadan dene"ye bastıktan sonra izin sorulur. "İndir" dersen sadece tavuk dosyaları (~50 MB) Valve'ın içerik sunucusundan bir kere indirilir; başka hesap eklenirse o tavuğun rengi ayrıca iner (~5 MB). Oyunun tamamı inmez, Steam hesabı da gerekmez.
 
 İki durumda da dosyalar sadece bu bilgisayarda kalır (`%APPDATA%\KumesCS`).
 
@@ -71,7 +71,7 @@ Kümes puts your CS2 pet chicken on your Windows desktop. It walks, pecks, sleep
 2. Sign in to Steam (QR code or username + Steam Guard), or click "Try without signing in".
 3. Uninstall from Settings → Apps → Kümes. A portable zip (`Kumes-x.y-win-x64.zip`) is also available; unzip it before running.
 
-You need Windows 10 or 11 (64-bit) and a chicken in your CS2 inventory. The chicken model is prepared on your PC: from your CS2 install, or, without CS2, downloaded once from Valve's servers after you allow it (~110 MB, no Steam account needed). The UI follows your Windows language; change it in Settings → Language.
+You need Windows 10 or 11 (64-bit) and a chicken in your CS2 inventory. The chicken model is prepared on your PC: from your CS2 install, or, without CS2, downloaded once from Valve's servers after you allow it (~50 MB, no Steam account needed). The UI follows your Windows language; change it in Settings → Language.
 
 Your password goes only to Steam and is never saved. Kümes connects as a separate Steam device, shows as "Playing CS2" for a few seconds and reads your chicken. It never trades, buys or sends messages. To remove it, open Steam Guard in the Steam mobile app and remove "Kümes Masaüstü" from your authorized devices.
 

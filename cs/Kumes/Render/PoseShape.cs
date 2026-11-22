@@ -59,10 +59,15 @@ sealed class PoseShape
 	// Tavuğa göre şekil: sadece 2. evre (Piliç) şekillenir (ergen aralığı: iri kafa, küçük ibik ve sakal, kısa kuyruk).
 	// 3. evre modelin kendi hali (kullanıcı kararı, 22 Kasım 2026: yetişkin aralığı uygulanınca boyun ve bacak fazla
 	// uzuyordu, eski Kümes tavuğu oyundakine daha çok benziyor). Civciv, yumurta ve koleksiyon resimleri de şekilsiz.
-	public static PoseShape? For(GlbModel model, PetInfo? pet)
+	// desktop: masaüstündeki tavuk (portrede değil): civciv yetişkinin ~%60'ı kadar küçültülür. Model civcivi yetişkin
+	// tavukla aynı boyda (ölçüm: 148 px'e 149 px) ve daha tombul; oyunda belirgin şekilde küçük. Portrede kutuyu doldurur.
+	public const float ChickScale = 0.6f;
+
+	public static PoseShape? For(GlbModel model, PetInfo? pet, bool desktop = false)
 	{
+		if (pet?.Kind == "chick") return desktop ? Uniform(model, ChickScale) : null;
 		if (model.Poses.Count == 0) return null; // eski çıkarılmış model: pozlar yok
-		if (pet == null || pet.Kind == "chick" || pet.StageName != "Piliç") return null;
+		if (pet == null || pet.StageName != "Piliç") return null;
 		var ranges = Adolescent;
 
 		uint seed = pet?.Seed ?? (pet?.Name is { } nm ? (uint)StableHash(nm) : 0);
@@ -75,6 +80,16 @@ sealed class PoseShape
 			values[name] = r.Min + (r.Max - r.Min) * u;
 		}
 		return Build(model, values, 0.9f); // 2. evre 3. evreden biraz küçük
+	}
+
+	// Şekil değişmeden sadece boy (ayaklar zeminde kalır)
+	static PoseShape Uniform(GlbModel model, float scale)
+	{
+		var shape = new PoseShape(model.Skeleton.Count);
+		var (feet, _) = Extent(model, null);
+		shape.Scale = scale;
+		shape.GroundLift = feet - feet * scale;
+		return shape;
 	}
 
 	public static PoseShape Build(GlbModel model, IReadOnlyDictionary<string, float> values, float heightFactor = 1)

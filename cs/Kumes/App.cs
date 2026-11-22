@@ -415,6 +415,7 @@ sealed unsafe class App
 		}
 		collection?.Want([pet]);
 		CheckNotifications();
+		EnsureCoats(); // bu tavuğun rengi hazır değilse (yeni hesap, renk değişti) ekle
 	}
 
 	// ---------- Steam profili (görünen ad, profil fotoğrafı) ----------
@@ -875,6 +876,7 @@ sealed unsafe class App
 
 		var own = AssetManager.LoadOwn();
 		ownReady = own != null;
+		if (own != null) EnsureCoats(); // kapalıyken eklenen hesap ya da değişen renk
 		// CS2 kurulu değilse ilk açılışta hemen inmez: önce giriş penceresi, sonra (giriş ya da "Giriş yapmadan dene") izin sorulur
 		if (own == null && accounts.Count > 0) StartExtract();
 		else if (own == null || AssetManager.Cs2Changed(own)) { if (!NeedsDownload) StartExtract(); }
@@ -906,7 +908,8 @@ sealed unsafe class App
 			download?.SetLocal("", 0, 0);
 		}
 		var sw = Stopwatch.StartNew();
-		Task.Run(() => AssetManager.Extract(
+		var pets = WantPets();
+		Task.Run(() => AssetManager.Extract(pets,
 				t => msg.Post(() => { extracting = t; UpdateTray(); }),
 				(n, total) => msg.Post(() => download?.SetLocal(extracting ?? "", n, total))))
 			.ContinueWith(t => msg.Post(() => ExtractDone(t, sw)));
@@ -945,7 +948,8 @@ sealed unsafe class App
 		Log.Write("CS2 kurulu değil: tavuk dosyaları Valve'dan indiriliyor (anonim)");
 		OpenDownloadWindow();
 		var sw = Stopwatch.StartNew();
-		Task.Run(() => AssetManager.ExtractFromSteam(anon, account,
+		var pets = WantPets();
+		Task.Run(() => AssetManager.ExtractFromSteam(anon, account, pets,
 				t => msg.Post(() => { extracting = t; UpdateTray(); }),
 				n => msg.Post(() => download?.SetStep(n)),
 				b => msg.Post(() => download?.AddBytes(b)),
@@ -1004,6 +1008,7 @@ sealed unsafe class App
 			ownReady = true;
 			collection = null; // koleksiyon resimleri yeni modellerle yeniden çizilsin
 			EnsureModel(force: true); // aynı klasöre yeniden çıkarıldı: yol değişmese de dosyalar yeni
+			EnsureCoats(); // hazırlık sürerken giriş yapıldıysa o tavuğun rengi
 		}
 		else
 		{
@@ -1098,8 +1103,65 @@ sealed unsafe class App
 		switchLoad = 0;
 		switchStart = Stopwatch.GetTimestamp();
 		Log.Write($"hesap değiştiriliyor: {a.Id}");
-		EnsureModel(target: a, progress: p => switchLoad = Math.Max(switchLoad, p), defer: true);
+		// önce tavuğun rengi hazır değilse o (çubuğun ilk yarısı), sonra model (ikinci yarısı)
+		EnsureCoats(p => { if (switching == a) switchLoad = Math.Max(switchLoad, p * 0.5f); }, () =>
+		{
+			if (switching != a) return;
+			EnsureModel(target: a, progress: p => switchLoad = Math.Max(switchLoad, 0.5f + p * 0.5f), defer: true);
+		});
 		UpdateTray();
+	}
+
+	// ---- sadece gereken renkler ----
+	// Hazırlık bütün türlerin modellerini ama sadece gereken renkleri içerir (demo, civciv ve hesapların tavukları).
+	// Bir tavuğun rengi yoksa (yeni hesap, oyunda renk değişti) sadece o eklenir: CS2 kuruluysa kurulumdan, değilse
+	// Valve'dan (birkaç MB). Bitince model yeniden yüklenir.
+	IEnumerable<PetInfo?> WantPets() => accounts.Select(a => a.Cache.Pet).Where(p => p is { Found: true }).ToList(); // demo: Silkie Splash, zaten hep var
+
+	bool addingCoats;
+	readonly List<Action> coatsDone = new();
+
+	void EnsureCoats(Action<float>? progress = null, Action? done = null)
+	{
+		if (done != null) coatsDone.Add(done);
+		if (addingCoats) return;
+		List<(string Breed, string Coat, string Vmat)> missing = [];
+		if (!extractStarted && AssetManager.LoadOwn() is { } own)
+			using (own.Manifest) missing = AssetManager.MissingCoats(own, WantPets());
+		if (missing.Count == 0) { FinishCoats(); return; }
+		addingCoats = true;
+		Log.Write($"eksik renkler hazırlanıyor: {string.Join(", ", missing.Select(m => $"{m.Breed}/{m.Coat}"))}");
+		progress?.Invoke(0.1f);
+		bool local = !NeedsDownload;
+		long got = 0, expect = missing.Count * 6L * 1024 * 1024; // indirmede renk başına ~6 MB (parça fazlasıyla)
+		var account = accounts.FirstOrDefault(x => x.LoggedIn && !x.IsDemo)?.Steam;
+		var anon = local ? null : new SteamService(new MemorySessionStore(), DesktopAccount.DeviceName, SteamService.DesktopLoginId);
+		var sw = Stopwatch.StartNew();
+		Task.Run(() =>
+		{
+			if (local) AssetManager.AddCoatsLocal(missing);
+			else AssetManager.AddCoatsFromSteam(anon!, account, missing,
+				b => msg.Post(() => progress?.Invoke(0.1f + 0.8f * Math.Min(1f, (got += b) / (float)expect))), CancellationToken.None);
+		}).ContinueWith(t => msg.Post(() =>
+		{
+			addingCoats = false;
+			if (t.IsFaulted) Log.Write($"renkler eklenemedi: {t.Exception?.InnerException}");
+			else
+			{
+				Log.Write($"renkler hazır ({sw.ElapsedMilliseconds} ms)");
+				if (AssetManager.LoadOwn() is { } set) { assets = set; collection = null; }
+			}
+			progress?.Invoke(1);
+			FinishCoats();
+			EnsureModel(); // seçili tavuğun rengi artık hazırsa yüklenir
+		}));
+	}
+
+	void FinishCoats()
+	{
+		var list = coatsDone.ToList();
+		coatsDone.Clear();
+		foreach (var d in list) d();
 	}
 
 	// her döngüde: yükleme ekranını ilerlet, bitince bilgileri ve tavuğu birlikte değiştir

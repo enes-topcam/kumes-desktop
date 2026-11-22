@@ -69,7 +69,7 @@ sealed unsafe class PetView : IDisposable
 		this.model = model; // köşe verisi tutulur: aynı modelden Kümes penceresi için büyük resim de çizilir
 		this.coat = coat;
 		animator = new PetAnimator(model);
-		animator.Mixer.Shape = PoseShape.For(model, pet()); // evre şekli
+		animator.Mixer.Shape = PoseShape.For(model, pet(), desktop: true); // evre şekli, civcivde boy
 		wa = GetWorkArea();
 		Behavior = new PetBehavior(animator, s, () => this.pet()?.FoodExpiresAt, WorldW * 0.75f);
 
@@ -95,7 +95,7 @@ sealed unsafe class PetView : IDisposable
 		this.model = model;
 		this.coat = coat;
 		animator = new PetAnimator(model);
-		animator.Mixer.Shape = PoseShape.For(model, pet()); // evre şekli
+		animator.Mixer.Shape = PoseShape.For(model, pet(), desktop: true); // evre şekli, civcivde boy
 		Behavior.SetAnimator(animator);
 		ModelKey = modelKey;
 		hasPending = false;

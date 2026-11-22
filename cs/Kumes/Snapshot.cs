@@ -40,11 +40,14 @@ static unsafe class Snapshot
 		if (Environment.GetEnvironmentVariable("KUMES_SHAPE") is { Length: > 0 } sh)
 			mixer.Shape = sh switch
 			{
+				"desktop" => null, // aşağıda: civcivde masaüstü boyu
 				"adult" or "adolescent" => PoseShape.For(model, new PetInfo(true, Kind: "chicken", StageName: sh == "adult" ? "Tavuk" : "Piliç",
 					Seed: uint.TryParse(Environment.GetEnvironmentVariable("KUMES_SEED"), out var sd) ? sd : 7)),
 				_ => PoseShape.Build(model, sh.Split(',').Select(kv => kv.Split('='))
 					.ToDictionary(kv => kv[0], kv => float.Parse(kv[1], System.Globalization.CultureInfo.InvariantCulture))),
 			};
+		if (pet?.Kind == "chick" && mixer.Shape == null && Environment.GetEnvironmentVariable("KUMES_SHAPE") == "desktop")
+			mixer.Shape = PoseShape.For(model, pet, desktop: true); // masaüstündeki civciv boyu
 		if (!model.Clips.TryGetValue(clipName, out var clip)) throw new ArgumentException("klip yok: " + clipName);
 		var layer = mixer.Play(clip, false);
 		layer.Weight = 1;

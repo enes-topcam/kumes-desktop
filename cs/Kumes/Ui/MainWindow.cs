@@ -783,7 +783,7 @@ sealed unsafe class MainWindow : WindowBase
 			(T("Veri klasörünü aç"), "%APPDATA%\\KumesCS", GFolder, "openfolder"),
 			(T("Kayıt dosyasını aç"), "kumes.log", GDoc, "openlog"),
 			model.NoCs2
-				? (T("Tavuk modelini indir"), model.Extracting ?? (model.ModelReady ? T("İndirildi, bilgisayarında hazır") : T("Modeli ve renkleri Valve'dan indirir (~110 MB)")), GBox, "reextract")
+				? (T("Tavuk modelini indir"), model.Extracting ?? (model.ModelReady ? T("İndirildi, bilgisayarında hazır") : T("Modeli ve renkleri Valve'dan indirir (~50 MB)")), GBox, "reextract")
 				: (T("CS2 modellerini yeniden çıkar"), model.Extracting ?? T("Tavuk modeli ve renkleri baştan hazırlanır"), GBox, "reextract"),
 		];
 		y = Group(y, data.Length, 60, (i, ry) =>

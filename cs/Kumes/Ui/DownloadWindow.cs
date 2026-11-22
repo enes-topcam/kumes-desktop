@@ -13,8 +13,9 @@ sealed unsafe class DownloadWindow : WindowBase
 {
 	const uint Style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
 	const uint Track = 0x2A2A3AFFu, StrawHot = 0xCDB9F4FFu, ButtonBg = 0x1B1C29FFu;
-	// İlk indirmede gelen toplam (ölçüm, 22 Kasım 2026: ~108 MB parça + dosya dizini). Çubuk buna göre dolar.
-	public const long ExpectedBytes = 110L * 1024 * 1024;
+	// İlk indirmede gelen toplam (ölçüm, 22 Kasım 2026: bütün modeller + sadece demo ve civciv renkleri ~48,5 MB; eskiden
+	// bütün renkler ~108 MB). Hesap eklenince o tavuğun rengi ayrıca iner (~5 MB). Çubuk buna göre dolar.
+	public const long ExpectedBytes = 50L * 1024 * 1024;
 
 	static readonly string[] Steps = ["Modeller", "Animasyonlar ve iskelet", "Malzemeler", "Renkler (dokular)"];
 
@@ -135,7 +136,7 @@ sealed unsafe class DownloadWindow : WindowBase
 		// MB
 		y += 18 * s;
 		var small = g.Font(12.5f * s, 400, Theme.Sans);
-		surf.Text(local ? T("Sadece ilk açılışta, yaklaşık 1 dakika sürer.") : Tf("{0} MB / yaklaşık {1} MB", Mb(bytes), ExpectedBytes / 1048576), pad, y, small, Theme.Muted);
+		surf.Text(local ? T("Sadece ilk açılışta, yaklaşık 20 saniye sürer.") : Tf("{0} MB / yaklaşık {1} MB", Mb(bytes), ExpectedBytes / 1048576), pad, y, small, Theme.Muted);
 
 		// alt: hata ve düğmeler ya da bilgi
 		float by = ch - 52 * s;

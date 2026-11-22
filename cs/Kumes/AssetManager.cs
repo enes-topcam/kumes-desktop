@@ -252,17 +252,119 @@ static partial class AssetManager
 		return null;
 	}
 
-	// Modelin veri bloğundaki materyal grupları: grup adı = eşyanın "style" numarası.
-	static Dictionary<string, string> ParseStyles(string breed, string dataBlock)
+	// Modelin veri bloğundaki materyal grupları: grup adı = eşyanın "style" numarası. materials: renk -> malzeme dosyası
+	static Dictionary<string, string> ParseStyles(string breed, string dataBlock, Dictionary<string, string>? materials = null)
 	{
 		var styles = new Dictionary<string, string>();
 		foreach (Match m in MaterialGroup().Matches(dataBlock))
 		{
 			if (m.Groups[1].Value == "default") continue;
 			var baseName = Path.GetFileNameWithoutExtension(m.Groups[2].Value);
-			if (CoatName(breed, baseName) is string coat) styles[m.Groups[1].Value] = coat;
+			if (CoatName(breed, baseName) is not string coat) continue;
+			styles[m.Groups[1].Value] = coat;
+			if (materials != null) materials[coat] = m.Groups[2].Value;
 		}
 		return styles;
+	}
+
+	// ---------- sadece gereken renkler ----------
+	// Renk dokuları yükün çoğu (üç türün bütün renkleri ~70 MB; indirmede parça fazlasıyla daha da çok). Modeller ve
+	// animasyonlar her tür için hazırlanır (küçük); renklerden sadece demo tavuğununki (Silkie Splash), civcivinki (tek renk)
+	// ve hesapların tavuklarınınki. Sonradan başka renk gerekirse (yeni hesap, renk değişimi) sadece o eklenir (AddCoats*).
+	// manifest "materials": her rengin malzeme dosyası (eklemek için). Bu alan yoksa (eski manifest) bütün renkler hazırdır.
+	static readonly Dictionary<string, string> DefaultCoat = new() { ["silkie"] = "splash", ["chick"] = "yellow" };
+
+	// Tavuğun türü ve rengi (Resolve ile aynı seçim); pet null: demo tavuğu
+	static (string Breed, string Coat) CoatKey(Func<string, string, string?> style, PetInfo? pet)
+	{
+		if (pet?.Kind == "chick") return ("chick", "yellow");
+		var breed = (pet?.Breed ?? "Silkie").ToLowerInvariant();
+		if (pet?.Style is uint st && style(breed, st.ToString()) is string c) return (breed, c);
+		return (breed, DefaultCoat.GetValueOrDefault(breed) ?? style(breed, "1") ?? "");
+	}
+
+	static HashSet<(string Breed, string Coat)> WantedCoats(Func<string, string, string?> style, IEnumerable<PetInfo?> pets)
+	{
+		var set = new HashSet<(string, string)> { ("silkie", "splash"), ("chick", "yellow") };
+		foreach (var p in pets) set.Add(CoatKey(style, p));
+		return set;
+	}
+
+	// Hazır olmayan ama eklenebilecek renkler: (tür, renk, malzeme dosyası)
+	public static List<(string Breed, string Coat, string Vmat)> MissingCoats(AssetSet set, IEnumerable<PetInfo?> pets)
+	{
+		var m = set.Manifest.RootElement;
+		var list = new List<(string, string, string)>();
+		if (!m.TryGetProperty("materials", out var mats) || !m.TryGetProperty("coats", out var coats)) return list;
+		string? Style(string breed, string st) =>
+			m.TryGetProperty("styles", out var s) && s.TryGetProperty(breed, out var bs) && bs.TryGetProperty(st, out var c) ? c.GetString() : null;
+		foreach (var (breed, coat) in WantedCoats(Style, pets))
+		{
+			if (coats.TryGetProperty(breed, out var bc) && bc.TryGetProperty(coat, out _)) continue;
+			if (mats.TryGetProperty(breed, out var bm) && bm.TryGetProperty(coat, out var vm) && vm.GetString() is string vmat)
+				list.Add((breed, coat, vmat));
+		}
+		return list;
+	}
+
+	// Manifest'e hazırlanan renkleri ekle (diğer alanlar aynı kalır; yarım yazılmasın diye önce geçici dosyaya)
+	static void AddToManifest(string dir, Dictionary<string, Dictionary<string, object>> add)
+	{
+		var path = Path.Combine(dir, "manifest.json");
+		var root = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+		var coats = root["coats"]!.AsObject();
+		foreach (var (breed, list) in add)
+		{
+			if (coats[breed] is not System.Text.Json.Nodes.JsonObject bc) coats[breed] = bc = new System.Text.Json.Nodes.JsonObject();
+			foreach (var (coat, v) in list) bc[coat] = JsonSerializer.SerializeToNode(v);
+		}
+		File.WriteAllText(path + ".tmp", root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+		File.Move(path + ".tmp", path, overwrite: true);
+	}
+
+	// Çıkarılmış .vmat dosyalarından renkler (manifest "coats" biçiminde)
+	static Dictionary<string, Dictionary<string, object>> CoatsFromVmats(string dir)
+	{
+		var matDir = Path.Combine(dir, "materials", "models", "chicken");
+		var vmats = Directory.Exists(matDir) ? Directory.GetFiles(matDir, "*.vmat") : [];
+		var coats = new Dictionary<string, Dictionary<string, object>>();
+		foreach (var breed in Models.Keys)
+		{
+			coats[breed] = new();
+			foreach (var f in vmats)
+			{
+				var baseName = Path.GetFileNameWithoutExtension(f);
+				if (baseName.Contains("roasted") || baseName.EndsWith("_fur") || CoatName(breed, baseName) is not string coat) continue;
+				var (color, normal, ao, _) = ReadVmat(f);
+				bool Ok(string? p) => p != null && File.Exists(Path.Combine(dir, p));
+				if (!Ok(color)) continue;
+				// civcivin tüy katmanı ayrı malzemede (<renk>_fur.vmat): rengi ve saydamlık maskesi aynı renge bağlanır
+				var furVmat = Path.Combine(matDir, baseName + "_fur.vmat");
+				string? furColor = null, furAlpha = null;
+				if (File.Exists(furVmat))
+				{
+					var (fc, _, _, ft) = ReadVmat(furVmat);
+					if (Ok(fc) && Ok(ft)) { furColor = fc; furAlpha = ft; }
+				}
+				coats[breed][coat] = new { color, normal = Ok(normal) ? normal : null, ao = Ok(ao) ? ao : null, furColor, furAlpha };
+			}
+		}
+		return coats;
+	}
+
+	// CS2 kuruluysa: eksik renkleri kendi kurulumundan çıkarıp hazır sete ekle
+	public static void AddCoatsLocal(IReadOnlyList<(string Breed, string Coat, string Vmat)> missing)
+	{
+		var exe = FindCli() ?? throw new FileNotFoundException("Source2Viewer-CLI bulunamadı (tools/vrf).");
+		var cs2 = FindCs2Dir() ?? throw new DirectoryNotFoundException("CS2 kurulumu bulunamadı.");
+		foreach (var (breed, coat, vmat) in missing)
+		{
+			RunCli(exe, "-i", Path.Combine(cs2, "pak01_dir.vpk"), "-f", vmat + "_c", "-o", OwnDir, "-d", "--game", Path.Combine(cs2, "gameinfo.gi"));
+			Log.Write($"renk eklendi: {breed}/{coat}");
+		}
+		var all = CoatsFromVmats(OwnDir);
+		AddToManifest(OwnDir, missing.GroupBy(x => x.Breed).ToDictionary(g => g.Key,
+			g => g.Where(x => all[x.Breed].ContainsKey(x.Coat)).ToDictionary(x => x.Coat, x => all[x.Breed][x.Coat])));
 	}
 
 	static (string? Color, string? Normal, string? Ao, string? Translucency) ReadVmat(string file)
@@ -276,8 +378,9 @@ static partial class AssetManager
 		return (Get("TextureColor"), Get("TextureNormal"), Get("TextureAmbientOcclusion"), Get("TextureTranslucency"));
 	}
 
-	// Tüm modelleri ve renkleri çıkarır; ilerlemeyi progress ile bildirir. Ana iş parçacığında ÇAĞIRMA.
-	public static void Extract(Action<string> progress, Action<int, int>? stage = null)
+	// Bütün modelleri ve gereken renkleri (pets: hesapların tavukları; demo ve civciv her zaman) çıkarır; ilerlemeyi
+	// progress ile bildirir. Ana iş parçacığında ÇAĞIRMA.
+	public static void Extract(IEnumerable<PetInfo?> pets, Action<string> progress, Action<int, int>? stage = null)
 	{
 		var exe = FindCli() ?? throw new FileNotFoundException("Source2Viewer-CLI bulunamadı (tools/vrf).");
 		var cs2 = FindCs2Dir() ?? throw new DirectoryNotFoundException("CS2 kurulumu bulunamadı.");
@@ -287,7 +390,19 @@ static partial class AssetManager
 		if (Directory.Exists(tmp)) Directory.Delete(tmp, true);
 		Directory.CreateDirectory(tmp);
 
-		int step = 0, total = Models.Count * 2;
+		// türlerin renk listesi (style -> renk) ve her rengin malzemesi: hangi renklerin gerektiği buna göre seçilir
+		var styles = new Dictionary<string, Dictionary<string, string>>();
+		var materials = new Dictionary<string, Dictionary<string, string>>();
+		foreach (var (breed, model) in Models)
+		{
+			materials[breed] = new();
+			try { styles[breed] = ParseStyles(breed, RunCli(exe, "-i", vpk, "-f", model, "-b", "DATA"), materials[breed]); }
+			catch { styles[breed] = new(); }
+		}
+		var wanted = WantedCoats((b, st) => styles.GetValueOrDefault(b)?.GetValueOrDefault(st), pets)
+			.Where(w => w.Breed != "chick" && materials.GetValueOrDefault(w.Breed)?.ContainsKey(w.Coat) == true).ToList();
+
+		int step = 0, total = Models.Count + 1 + wanted.Count;
 		foreach (var (breed, model) in Models)
 		{
 			progress(Tf("CS2 modelleri çıkarılıyor ({0}/{1})…", ++step, total));
@@ -298,48 +413,24 @@ static partial class AssetManager
 			File.Delete(Path.Combine(tmp, $"{breed}_physics.glb"));
 		}
 
-		var styles = new Dictionary<string, Dictionary<string, string>>();
-		foreach (var (breed, model) in Models)
-		{
-			try { styles[breed] = ParseStyles(breed, RunCli(exe, "-i", vpk, "-f", model, "-b", "DATA")); }
-			catch { styles[breed] = new(); }
-		}
-
-		foreach (var breed in Models.Keys)
+		// renkler: civciv (tek renk, küçük) ve sadece gereken renkler
+		progress(Tf("CS2 renkleri çıkarılıyor ({0}/{1})…", ++step, total));
+		stage?.Invoke(step, total);
+		foreach (var prefix in MaterialPrefix["chick"])
+			RunCli(exe, "-i", vpk, "-f", $"materials/models/chicken/{prefix}", "-e", "vmat_c", "-o", tmp, "-d", "--game", gameinfo);
+		foreach (var (breed, coat) in wanted)
 		{
 			progress(Tf("CS2 renkleri çıkarılıyor ({0}/{1})…", ++step, total));
 			stage?.Invoke(step, total);
-			foreach (var prefix in MaterialPrefix[breed])
-				RunCli(exe, "-i", vpk, "-f", $"materials/models/chicken/{prefix}", "-e", "vmat_c", "-o", tmp, "-d", "--game", gameinfo);
+			RunCli(exe, "-i", vpk, "-f", materials[breed][coat] + "_c", "-o", tmp, "-d", "--game", gameinfo);
 		}
 
-		// manifest (Electron sürümüyle aynı biçim)
-		var matDir = Path.Combine(tmp, "materials", "models", "chicken");
-		var vmats = Directory.Exists(matDir) ? Directory.GetFiles(matDir, "*.vmat") : [];
+		// manifest (Electron sürümüyle aynı biçim; materials: eklenebilecek renkler)
 		var models = new Dictionary<string, string>();
-		var coats = new Dictionary<string, Dictionary<string, object>>();
 		foreach (var breed in Models.Keys)
-		{
 			if (File.Exists(Path.Combine(tmp, $"{breed}.glb"))) models[breed] = $"{breed}.glb";
-			coats[breed] = new();
-			foreach (var f in vmats)
-			{
-				var baseName = Path.GetFileNameWithoutExtension(f);
-				if (baseName.Contains("roasted") || baseName.EndsWith("_fur") || CoatName(breed, baseName) is not string coat) continue;
-				var (color, normal, ao, _) = ReadVmat(f);
-				bool Ok(string? p) => p != null && File.Exists(Path.Combine(tmp, p));
-				if (!Ok(color)) continue;
-				// civcivin tüy katmanı ayrı malzemede (<renk>_fur.vmat): rengi ve saydamlık maskesi aynı renge bağlanır
-				var furVmat = Path.Combine(matDir, baseName + "_fur.vmat");
-				string? furColor = null, furAlpha = null;
-				if (File.Exists(furVmat))
-				{
-					var (fc, _, _, ft) = ReadVmat(furVmat);
-					if (Ok(fc) && Ok(ft)) { furColor = fc; furAlpha = ft; }
-				}
-				coats[breed][coat] = new { color, normal = Ok(normal) ? normal : null, ao = Ok(ao) ? ao : null, furColor, furAlpha };
-			}
-		}
+		var coats = CoatsFromVmats(tmp);
+		Log.Write($"hazırlanan renkler: {string.Join(", ", coats.SelectMany(b => b.Value.Keys.Select(c => $"{b.Key}/{c}")))}");
 		if (models.Count == 0) throw new InvalidOperationException("Model çıkarılamadı.");
 		var manifest = new
 		{
@@ -348,8 +439,9 @@ static partial class AssetManager
 			models,
 			coats,
 			styles,
+			materials,
 			vpkStamp = VpkStamp(vpk),
-			defaultCoat = new Dictionary<string, string> { ["silkie"] = "splash", ["chick"] = "yellow" },
+			defaultCoat = DefaultCoat,
 		};
 		File.WriteAllText(Path.Combine(tmp, "manifest.json"), JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
 

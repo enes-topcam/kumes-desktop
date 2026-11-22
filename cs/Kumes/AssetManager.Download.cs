@@ -22,10 +22,46 @@ static partial class AssetManager
 	// İndir ve hazırla (arka planda çağır). Önce anonim Steam girişiyle (hesap gerekmez; "Giriş yapmadan dene" de çalışsın);
 	// Valve anonim erişimi kapatırsa ve giriş yapılmış hesap varsa (account) onunla. stage: 1-4 indirme adımı,
 	// 5 hazırlanıyor; bytes: inen parça boyu.
-	public static void ExtractFromSteam(SteamService anon, SteamService? account, Action<string> progress, Action<int>? stage, Action<long>? bytes, CancellationToken ct)
+	// pets: renkleri hazırlanacak tavuklar (hesapların; demo ve civciv her zaman)
+	public static void ExtractFromSteam(SteamService anon, SteamService? account, IEnumerable<PetInfo?> pets, Action<string> progress, Action<int>? stage, Action<long>? bytes, CancellationToken ct)
+	{
+		try { BuildFromFiles(Fetcher(anon, account, bytes, ct), DownloadDir, OwnDir, pets, progress, stage, ct); }
+		finally { try { Directory.Delete(DownloadDir, true); } catch { } }
+	}
+
+	// Sonradan gereken renkleri (yeni hesap, renk değişimi) indirip hazır sete ekle: sadece o rengin malzemesi ve dokuları
+	public static void AddCoatsFromSteam(SteamService anon, SteamService? account, IReadOnlyList<(string Breed, string Coat, string Vmat)> missing, Action<long>? bytes, CancellationToken ct)
+	{
+		try
+		{
+			var fetch = Fetcher(anon, account, bytes, ct);
+			var loader = new DownloadLoader(DownloadDir, Animations);
+			void Fetch(IEnumerable<string?> paths)
+			{
+				var list = paths.OfType<string>().Select(Compiled).Distinct().Where(p => !File.Exists(loader.Local(p))).ToList();
+				if (list.Count > 0) fetch(list).GetAwaiter().GetResult();
+			}
+			Fetch(missing.Select(m => m.Vmat));
+			var plan = missing.Select(m => (m.Breed, m.Coat, Tex: Textures(loader, m.Vmat))).ToList();
+			Fetch(plan.SelectMany(p => new[] { p.Tex.Color, p.Tex.Normal, p.Tex.Ao }));
+			var add = new Dictionary<string, Dictionary<string, object>>();
+			foreach (var (breed, coat, tex) in plan)
+			{
+				string? Png(string? vtex) => vtex == null ? null : TextureToPng(loader, vtex, OwnDir);
+				if (Png(tex.Color) is not string color) continue;
+				(add.TryGetValue(breed, out var b) ? b : add[breed] = new())[coat] = new { color, normal = Png(tex.Normal), ao = Png(tex.Ao), furColor = (string?)null, furAlpha = (string?)null };
+				Log.Write($"renk eklendi: {breed}/{coat}");
+			}
+			AddToManifest(OwnDir, add);
+		}
+		finally { try { Directory.Delete(DownloadDir, true); } catch { } }
+	}
+
+	// Önce anonim Steam girişiyle; Valve anonim erişimi kapatırsa ve giriş yapılmış hesap varsa onunla; geçici hatada tekrar
+	static Func<IReadOnlyList<string>, Task> Fetcher(SteamService anon, SteamService? account, Action<long>? bytes, CancellationToken ct)
 	{
 		bool anonymous = true;
-		async Task Fetch(IReadOnlyList<string> paths)
+		return async paths =>
 		{
 			for (int attempt = 1; ; attempt++)
 			{
@@ -47,9 +83,7 @@ static partial class AssetManager
 					await Task.Delay(TimeSpan.FromSeconds(5 * attempt), ct);
 				}
 			}
-		}
-		try { BuildFromFiles(Fetch, DownloadDir, OwnDir, progress, stage, ct); }
-		finally { try { Directory.Delete(DownloadDir, true); } catch { } }
+		};
 	}
 
 	// Geliştirme (Kumes.exe --download-test <klasör>): aynı akış, dosyalar indirilmek yerine bu bilgisayardaki CS2'nin
@@ -77,12 +111,12 @@ static partial class AssetManager
 			Log.Write($"test: {paths.Count} dosya istendi (toplam {count})");
 			return Task.CompletedTask;
 		}
-		BuildFromFiles(Fetch, root, target, t => Log.Write($"test: {t}"), null, CancellationToken.None);
+		BuildFromFiles(Fetch, root, target, [], t => Log.Write($"test: {t}"), null, CancellationToken.None);
 	}
 
 	// Modeli ve renkleri gereken dosyaları getirerek hazırlar; eksik parçaları (mesh, iskelet, animasyon, doku) turlar
 	// halinde ister. fetch: verilen pak01 yollarını root altına aynı yollarla yazar.
-	static void BuildFromFiles(Func<IReadOnlyList<string>, Task> fetch, string root, string target, Action<string> progress, Action<int>? stage, CancellationToken ct)
+	static void BuildFromFiles(Func<IReadOnlyList<string>, Task> fetch, string root, string target, IEnumerable<PetInfo?> pets, Action<string> progress, Action<int>? stage, CancellationToken ct)
 	{
 		var tmp = target + ".tmp";
 		if (Directory.Exists(tmp)) Directory.Delete(tmp, true);
@@ -142,6 +176,7 @@ static partial class AssetManager
 		progress(T("CS2 tavuk dosyaları indiriliyor (3/4)…"));
 		stage?.Invoke(3);
 		var materials = new Dictionary<string, List<string>>();
+		var coatMaterial = new Dictionary<string, Dictionary<string, string>>(); // manifest "materials": sonradan eklemek için
 		foreach (var (breed, modelPath) in Models)
 		{
 			using var res = loader.LoadFile(modelPath)!;
@@ -149,12 +184,20 @@ static partial class AssetManager
 			materials[breed] = groups.SelectMany(g => g.Materials ?? []).Concat(MaterialRefs(loader.Local(modelPath)))
 				.Select(m => m.Replace('\\', '/')).Where(m => !m.Contains("roasted")).Distinct().ToList();
 			styles[breed] = new();
+			coatMaterial[breed] = new();
 			foreach (var g in groups)
 			{
 				if (g.Name is null or "default" || g.Materials?.FirstOrDefault(m => !m.Contains("_fur")) is not string m) continue;
-				if (CoatName(breed, Path.GetFileNameWithoutExtension(m)) is string coat) styles[breed][g.Name] = coat;
+				if (CoatName(breed, Path.GetFileNameWithoutExtension(m)) is not string coat) continue;
+				styles[breed][g.Name] = coat;
+				coatMaterial[breed][coat] = m.Replace('\\', '/');
 			}
 		}
+		// sadece gereken renklerin malzemeleri (civcivin hepsi: tek renk)
+		var wanted = WantedCoats((b, st) => styles.GetValueOrDefault(b)?.GetValueOrDefault(st), pets);
+		bool Wanted(string breed, string mat) => breed == "chick"
+			|| CoatName(breed, Path.GetFileNameWithoutExtension(mat).Replace("_fur", "")) is string c && wanted.Contains((breed, c));
+		foreach (var breed in materials.Keys.ToList()) materials[breed] = materials[breed].Where(m => Wanted(breed, m)).ToList();
 		Fetch(materials.Values.SelectMany(m => m));
 
 		// her renk: kendi materyali + (civcivde) tüy katmanı materyali
@@ -195,7 +238,8 @@ static partial class AssetManager
 			models,
 			coats,
 			styles,
-			defaultCoat = new Dictionary<string, string> { ["silkie"] = "splash", ["chick"] = "yellow" },
+			materials = coatMaterial,
+			defaultCoat = DefaultCoat,
 		};
 		File.WriteAllText(Path.Combine(tmp, "manifest.json"), JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
 		if (Directory.Exists(target)) Directory.Delete(target, true);
