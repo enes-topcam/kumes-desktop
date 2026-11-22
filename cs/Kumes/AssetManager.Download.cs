@@ -19,14 +19,14 @@ static partial class AssetManager
 	static string DownloadDir => Path.Combine(Store.DataDir, "cs2-download"); // indirilen ham CS2 dosyaları (iş bitince silinir)
 	static string DownloadCache => Path.Combine(Store.DataDir, "cs2-cache");  // CS2 dosya dizini önbelleği (her seferinde inmesin)
 
-	// Hesapla indir ve hazırla (arka planda çağır)
-	public static void ExtractFromSteam(SteamService steam, Action<string> progress, CancellationToken ct)
+	// Hesapla indir ve hazırla (arka planda çağır). stage: 1-4 indirme adımı, 5 hazırlanıyor; bytes: inen parça boyu.
+	public static void ExtractFromSteam(SteamService steam, Action<string> progress, Action<int>? stage, Action<long>? bytes, CancellationToken ct)
 	{
 		async Task Fetch(IReadOnlyList<string> paths)
 		{
 			for (int attempt = 1; ; attempt++)
 			{
-				try { await steam.DownloadCs2FilesAsync(paths, DownloadDir, DownloadCache, ct); return; }
+				try { await steam.DownloadCs2FilesAsync(paths, DownloadDir, DownloadCache, ct, bytes); return; }
 				catch (SteamException e) when (e.Code != "NEED_LOGIN" && attempt < 4)
 				{
 					Log.Write($"CS2 indirme denemesi {attempt} olmadı ({e.Message}), tekrar denenecek");
@@ -34,7 +34,7 @@ static partial class AssetManager
 				}
 			}
 		}
-		try { BuildFromFiles(Fetch, DownloadDir, OwnDir, progress, ct); }
+		try { BuildFromFiles(Fetch, DownloadDir, OwnDir, progress, stage, ct); }
 		finally { try { Directory.Delete(DownloadDir, true); } catch { } }
 	}
 
@@ -63,12 +63,12 @@ static partial class AssetManager
 			Log.Write($"test: {paths.Count} dosya istendi (toplam {count})");
 			return Task.CompletedTask;
 		}
-		BuildFromFiles(Fetch, root, target, t => Log.Write($"test: {t}"), CancellationToken.None);
+		BuildFromFiles(Fetch, root, target, t => Log.Write($"test: {t}"), null, CancellationToken.None);
 	}
 
 	// Modeli ve renkleri gereken dosyaları getirerek hazırlar; eksik parçaları (mesh, iskelet, animasyon, doku) turlar
 	// halinde ister. fetch: verilen pak01 yollarını root altına aynı yollarla yazar.
-	static void BuildFromFiles(Func<IReadOnlyList<string>, Task> fetch, string root, string target, Action<string> progress, CancellationToken ct)
+	static void BuildFromFiles(Func<IReadOnlyList<string>, Task> fetch, string root, string target, Action<string> progress, Action<int>? stage, CancellationToken ct)
 	{
 		var tmp = target + ".tmp";
 		if (Directory.Exists(tmp)) Directory.Delete(tmp, true);
@@ -87,12 +87,14 @@ static partial class AssetManager
 
 		// 1) bütün modeller (tek istekte)
 		progress(T("CS2 tavuk dosyaları indiriliyor (1/4)…"));
+		stage?.Invoke(1);
 		Fetch(Models.Values);
 
 		// 2) GLB'ler (oyundaki animasyonlarla): eksik parçalar (mesh, iskelet, animasyon) bütün ırklar için birlikte
 		// istenir. Model her turda yeniden okunur: animasyon listesi ilk okumada hafızaya alınıyor, sonradan inen
 		// klipler eski nesnede görünmez.
 		progress(T("CS2 tavuk dosyaları indiriliyor (2/4)…"));
+		stage?.Invoke(2);
 		var pending = Models.Keys.ToList();
 		for (int round = 1; round <= 10 && pending.Count > 0; round++)
 		{
@@ -124,6 +126,7 @@ static partial class AssetManager
 
 		// 3) renkler: modelin materyal grupları (grup adı = eşyanın style numarası) + modelin içinde geçen materyaller
 		progress(T("CS2 tavuk dosyaları indiriliyor (3/4)…"));
+		stage?.Invoke(3);
 		var materials = new Dictionary<string, List<string>>();
 		foreach (var (breed, modelPath) in Models)
 		{
@@ -153,7 +156,9 @@ static partial class AssetManager
 
 		// 4) dokular (tek istekte) ve PNG'ye çevirme
 		progress(T("CS2 tavuk dosyaları indiriliyor (4/4)…"));
+		stage?.Invoke(4);
 		Fetch(plan.SelectMany(c => new[] { c.Tex.Color, c.Tex.Normal, c.Tex.Ao, c.Fur?.Color, c.Fur?.Translucency }));
+		stage?.Invoke(5);
 		foreach (var breed in Models.Keys) coats[breed] = new();
 		foreach (var (breed, coat, tex, fur) in plan)
 		{
@@ -245,8 +250,9 @@ static partial class AssetManager
 			if (!File.Exists(f)) { Missing.Add(path); return null; }
 			// ad önce verilip akıştan okunur: animasyon adları CS2'deki gibi göreli yol olsun
 			// ("animation/anims/chicken/world/chick_idle01"); dosya yoluyla okununca tam yol oluyor
+			// bellekten oku: VRF akışı kaynak kapanana kadar açık tutar, dosya açık kalırsa indirme klasörü silinemez
 			var r = new VResource { FileName = path };
-			r.Read(File.OpenRead(f));
+			r.Read(new MemoryStream(File.ReadAllBytes(f)));
 			return r;
 		}
 
@@ -257,7 +263,7 @@ static partial class AssetManager
 		public Stream? GetFileStream(string file)
 		{
 			var f = Local(file);
-			if (File.Exists(f)) return File.OpenRead(f);
+			if (File.Exists(f)) return new MemoryStream(File.ReadAllBytes(f));
 			Missing.Add(file.Replace('\\', '/').ToLowerInvariant());
 			return null;
 		}

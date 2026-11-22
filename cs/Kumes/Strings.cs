@@ -212,6 +212,23 @@ static class Strings
 		["CS2 tavuk dosyaları indiriliyor (3/4)…"] = "Downloading CS2 chicken files (3/4)…",
 		["CS2 tavuk dosyaları indiriliyor (4/4)…"] = "Downloading CS2 chicken files (4/4)…",
 
+		// ---- CS2'siz indirme penceresi ----
+		["Tavuk dosyaları indiriliyor"] = "Downloading chicken files",
+		["Tavuğun hazır"] = "Your chicken is ready",
+		["İndirme tamamlanamadı"] = "Download didn't finish",
+		["CS2 kurulu olmadığı için tavuğun modeli ve renkleri"] = "CS2 isn't installed, so your chicken's model and colors",
+		["Steam hesabınla Valve'dan indiriliyor. Sadece bir kere iner."] = "are downloaded from Valve with your Steam account. Only once.",
+		["Adım {0}/4 · {1}"] = "Step {0}/4 · {1}",
+		["Modeller"] = "Models",
+		["Animasyonlar ve iskelet"] = "Animations and skeleton",
+		["Malzemeler"] = "Materials",
+		["Renkler (dokular)"] = "Colors (textures)",
+		["Dosyalar hazırlanıyor…"] = "Preparing files…",
+		["Steam'e bağlanılıyor…"] = "Connecting to Steam…",
+		["{0} MB / yaklaşık {1} MB"] = "{0} MB / about {1} MB",
+		["Bu pencereyi kapatabilirsin, indirme arka planda sürer."] = "You can close this window. The download continues in the background.",
+		["Tavuk dosyaları indirilemedi"] = "Couldn't download the chicken files",
+
 		// ---- tavuğun üstündeki bilgi balonu ----
 		["🌾 {0} · Yem"] = "🌾 {0} · Feed",
 		["bilinmiyor"] = "unknown",

@@ -33,7 +33,8 @@ sealed unsafe class App
 	string? extracting;
 	bool extractStarted;
 	DateTime nextWatch, nextHousekeeping, nextMinute, nextPeriodic;
-	DateTime afterCloseAt = DateTime.MaxValue, closeLoginAt = DateTime.MaxValue, trimAt = DateTime.MaxValue;
+	DateTime afterCloseAt = DateTime.MaxValue, closeLoginAt = DateTime.MaxValue, closeDownloadAt = DateTime.MaxValue, trimAt = DateTime.MaxValue;
+	DownloadWindow? download; // CS2'siz indirme penceresi
 
 	MainWindow? panel;
 	byte[]? heroImage;    // seçili tavuğun portresi (Ana Sayfa), 3D modelden
@@ -147,6 +148,7 @@ sealed unsafe class App
 		loginCts?.Cancel();
 		fetchCts?.Cancel();
 		login?.Dispose();
+		download?.Dispose();
 		panel?.Dispose();
 		tray.Dispose();
 		view?.Dispose();
@@ -208,6 +210,12 @@ sealed unsafe class App
 		{
 			afterCloseAt = DateTime.MaxValue;
 			Refresh("cs2-closed");
+		}
+		if (now >= closeDownloadAt)
+		{
+			closeDownloadAt = DateTime.MaxValue;
+			download?.Dispose();
+			download = null;
 		}
 		if (now >= closeLoginAt)
 		{
@@ -870,18 +878,45 @@ sealed unsafe class App
 		extracting = T("CS2 tavuk dosyaları indiriliyor…");
 		UpdateTray();
 		Log.Write("CS2 kurulu değil: tavuk dosyaları Steam hesabıyla indiriliyor");
+		OpenDownloadWindow();
 		var sw = Stopwatch.StartNew();
-		Task.Run(() => AssetManager.ExtractFromSteam(a.Steam, t => msg.Post(() => { extracting = t; UpdateTray(); }), CancellationToken.None))
-			.ContinueWith(t => msg.Post(() => ExtractDone(t, sw)));
+		Task.Run(() => AssetManager.ExtractFromSteam(a.Steam,
+				t => msg.Post(() => { extracting = t; UpdateTray(); }),
+				n => msg.Post(() => download?.SetStep(n)),
+				b => msg.Post(() => download?.AddBytes(b)),
+				CancellationToken.None))
+			.ContinueWith(t => msg.Post(() => ExtractDone(t, sw, downloaded: true)));
 	}
 
-	void ExtractDone(Task t, Stopwatch sw)
+	// İndirme penceresi (sadece CS2'siz indirmede): adım, MB, ilerleme. Kapatılırsa indirme arka planda sürer.
+	void OpenDownloadWindow()
+	{
+		closeDownloadAt = DateTime.MaxValue;
+		if (download != null) { download.Restart(); download.ShowAndFocus(); return; }
+		if (filming) return;
+		var w = new DownloadWindow();
+		w.SetIcon(windowIcon.Small, windowIcon.Big);
+		download = w;
+		bool moving = false;
+		w.Moving = m =>
+		{
+			if (m == moving) return;
+			moving = m;
+			if (m) msg.BeginModal(); else msg.EndModal(); // pencere sürüklenirken tavuk donmasın
+		};
+		w.Closed = () => { if (download == w) download = null; };
+		w.Retry = () => msg.Post(StartExtract);
+		w.ShowAndFocus();
+	}
+
+	void ExtractDone(Task t, Stopwatch sw, bool downloaded = false)
 	{
 		extracting = null;
 		extractStarted = false;
 		if (t.IsCompletedSuccessfully && AssetManager.LoadOwn() is AssetSet own)
 		{
 			Log.Write($"CS2 modelleri hazır ({sw.Elapsed.TotalSeconds:F0} sn)");
+			if (download != null) { download.SetDone(); closeDownloadAt = DateTime.UtcNow.AddSeconds(3); }
 			assets = own;
 			collection = null; // koleksiyon resimleri yeni modellerle yeniden çizilsin
 			EnsureModel(force: true); // aynı klasöre yeniden çıkarıldı: yol değişmese de dosyalar yeni
@@ -889,6 +924,12 @@ sealed unsafe class App
 		else
 		{
 			Log.Write($"CS2 modelleri hazırlanamadı: {t.Exception?.InnerException}");
+			if (downloaded)
+			{
+				var why = t.Exception?.InnerException is SteamException se ? se.Message : T("Bağlantını kontrol edip yeniden dene.");
+				if (download != null) download.SetFailed(why);
+				else tray.Notify(T("Tavuk dosyaları indirilemedi"), why);
+			}
 		}
 		UpdateTray();
 		ScheduleTrim();

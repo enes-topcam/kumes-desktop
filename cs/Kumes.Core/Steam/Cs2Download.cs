@@ -17,7 +17,9 @@ public partial class SteamService
 
 	// vpkPaths: pak01 içindeki yollar (ör. "panorama/images/econ/pets/chicken_feed_bag_2_png.vtex_c").
 	// outDir altına aynı yollarla yazılır. cacheDir: dizin ve manifest önbelleği (her seferinde 7 MB inmesin).
-	public async Task<Cs2DownloadReport> DownloadCs2FilesAsync(IReadOnlyList<string> vpkPaths, string outDir, string cacheDir, CancellationToken ct)
+	// onBytes: her parça inince indirilen bayt (arka plan iş parçacığından; masaüstündeki indirme penceresi için)
+	public async Task<Cs2DownloadReport> DownloadCs2FilesAsync(IReadOnlyList<string> vpkPaths, string outDir, string cacheDir, CancellationToken ct,
+		Action<long>? onBytes = null)
 	{
 		var saved = store.Load() ?? throw new SteamException("NEED_LOGIN", "Steam girişi gerekiyor.");
 		using var conn = new Connection();
@@ -43,7 +45,7 @@ public partial class SteamService
 		await loggedOn.Task.WaitAsync(TimeSpan.FromSeconds(30), ct);
 		try
 		{
-			var dl = new DepotReader(conn.Client, cacheDir);
+			var dl = new DepotReader(conn.Client, cacheDir) { OnBytes = onBytes };
 			await dl.OpenAsync(ct);
 			var index = await dl.LoadVpkIndexAsync(ct);
 			var files = new List<(string, int)>();
@@ -94,6 +96,7 @@ public partial class SteamService
 		public long DownloadedBytes { get; private set; }
 		public int Chunks { get; private set; }
 		public long VpkDataStart { get; private set; }
+		public Action<long>? OnBytes { get; init; }
 
 		public async Task OpenAsync(CancellationToken ct)
 		{
@@ -254,6 +257,7 @@ public partial class SteamService
 					int n = await cdn.DownloadDepotChunkAsync(DepotId, c, s, buf, depotKey);
 					if (n != buf.Length) throw new IOException($"parça eksik geldi ({n}/{buf.Length})");
 					DownloadedBytes += c.CompressedLength; Chunks++;
+					OnBytes?.Invoke(c.CompressedLength);
 					return buf;
 				}
 				catch (Exception e) when (e is not OperationCanceledException) { last = e; }
