@@ -560,7 +560,7 @@ sealed unsafe class App
 		SetState(a, "idle");
 		if (login == w)
 		{
-			w.SetDone("Giriş tamam! Tavuğun aranıyor…");
+			w.SetDone("Giriş yapıldı, tavuk bilgileri alınıyor…");
 			closeLoginAt = DateTime.UtcNow.AddSeconds(1.5);
 		}
 		Select(a);

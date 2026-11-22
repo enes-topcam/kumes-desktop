@@ -276,8 +276,8 @@ sealed unsafe class LoginWindow : WindowBase
 		surf.Text("Steam'e bağlan", pad, 20 * s, g.Font(24 * s, 700, Theme.Serif), Theme.Ink);
 		surf.FillRect(pad + 1 * s, 56 * s, 28 * s, 3 * s, Theme.Straw); // Kümes penceresiyle aynı vurgu çizgisi
 		var lead = g.Font(13 * s, 400, Theme.Sans);
-		surf.Text("Tavuğunun yem ve büyüme bilgisi CS2'nin", pad, 66 * s, lead, Theme.Muted);
-		surf.Text("sunucusundan okunuyor. Bir kere giriş yeter.", pad, 84 * s, lead, Theme.Muted);
+		surf.Text("Tavuğunun yem ve büyüme bilgisi için", pad, 66 * s, lead, Theme.Muted);
+		surf.Text("Steam hesabınla giriş yap.", pad, 84 * s, lead, Theme.Muted);
 
 		bool pwTab = tab == Tab.Password && !done;
 		Place(userEdit, UserField, 19, pwTab && step is Step.Form or Step.Busy);

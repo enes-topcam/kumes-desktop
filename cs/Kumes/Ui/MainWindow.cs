@@ -499,16 +499,16 @@ sealed unsafe class MainWindow : WindowBase
 		y = CardTop - scroll;
 		var a = Selected;
 		if (a == null)
-			return y + Message(y, "Steam hesabını bağla", "Kümes, CS2'deki tavuğunun yem süresini ve gelişimini Steam hesabınla CS2'nin sunucusundan okur. Telefonundaki Steam uygulamasıyla QR kodu okutman yeter.", "Steam ile giriş yap", "login");
+			return y + Message(y, "Steam hesabını bağla", "Tavuğunun yem ve büyüme bilgisi için Steam'e giriş yap.", "Steam ile giriş yap", "login");
 		if (a.Pet == null)
 		{
 			if (a.State == "need-login") return y + Message(y, "Tekrar giriş gerekli", $"{a.Name} hesabının Steam oturumu sona erdi.", "Giriş yap", "login");
-			if (a.State == "fetching" || a.State == "idle") return y + Message(y, "Tavuğun aranıyor…", "CS2'nin sunucusundan tavuk bilgisi alınıyor.");
+			if (a.State == "fetching" || a.State == "idle") return y + Message(y, "Tavuk bilgileri alınıyor…", "Birkaç saniye sürer.");
 			if (a.State is "cs2" or "waiting") return y + Message(y, "Birazdan güncellenecek", a.Message.Length > 0 ? a.Message : "CS2 açık; kapanınca tavuk bilgisi alınacak.", "Tekrar dene", "refresh:" + a.Id);
 			return y + Message(y, "Tavuk bilgisi alınamadı", a.Message.Length > 0 ? a.Message : "Bağlantını kontrol edip yeniden dene.", "Tekrar dene", "refresh:" + a.Id);
 		}
 		if (!a.Pet.Found)
-			return y + Message(y, "Tavuk bulunamadı", $"{a.Name} hesabının CS2 envanterinde tavuk ya da yumurta yok. Yeni bir tavuk alınca burada görünür.", "Tekrar kontrol et", "refresh:" + a.Id);
+			return y + Message(y, "Tavuk bulunamadı", $"{a.Name} hesabının CS2 envanterinde tavuk ya da yumurta yok.", "Tekrar kontrol et", "refresh:" + a.Id);
 		y += PetCard(a, X0, y, CW, CardH) + 28;
 		return History(a, y);
 	}
@@ -555,10 +555,10 @@ sealed unsafe class MainWindow : WindowBase
 			y += 94;
 		}
 		if (model.Accounts.Count == 0)
-			y += Message(y, "Henüz tavuk yok", "Steam hesabını bağlayınca tavuğun burada görünür.", "Steam ile giriş yap", "login") + 10;
+			y += Message(y, "Henüz tavuk yok", "Steam'e giriş yapınca tavuğun burada görünür.", "Steam ile giriş yap", "login") + 10;
 		else if (model.Accounts.Count == 1)
 		{
-			S.Text("Başka bir Steam hesabındaki tavuğu da takip etmek için + ile hesap ekle.", X0 + 4, y + 4, F(13), Faint);
+			S.Text("Başka bir hesaptaki tavuğu da takip etmek için + ile hesap ekle.", X0 + 4, y + 4, F(13), Faint);
 			y += 30;
 		}
 		return y;
@@ -602,7 +602,7 @@ sealed unsafe class MainWindow : WindowBase
 			("Tavuğu göster", "Görev çubuğunun ve pencerelerin üstündeki tavuk", model.Settings.Visible, "visible"),
 			("Her zaman üstte", "Tavuk diğer pencerelerin önünde kalır", model.Settings.AlwaysOnTop, "topmost"),
 			("CS2 açıkken gizle", "Oyun açıkken tavuk görünmez", model.Settings.HideWhileCs2, "hidecs2"),
-			("Windows açılınca başlat", "Bilgisayar açılınca Kümes sessizce başlar (pencere açılmaz)", model.Autostart, "autostart"),
+			("Windows açılınca başlat", "Pencere açılmadan arka planda başlar", model.Autostart, "autostart"),
 		];
 		y = Group(y, toggles.Length, 60, (i, ry) =>
 		{
@@ -647,7 +647,7 @@ sealed unsafe class MainWindow : WindowBase
 			("Şimdi güncelle", model.Fetching ? "Güncelleniyor…" : last is { } t ? $"Son senkronizasyon: {Fmt.When(t)}" : "Henüz güncellenmedi", GRefresh, "refresh"),
 			("Veri klasörünü aç", "%APPDATA%\\KumesCS", GFolder, "openfolder"),
 			("Kayıt dosyasını aç", "kumes.log", GDoc, "openlog"),
-			("CS2 modellerini yeniden çıkar", model.Extracting ?? "Modeller ve renkler CS2'den alınır (kurulu değilse Steam hesabınla indirilir)", GBox, "reextract"),
+			("CS2 modellerini yeniden çıkar", model.Extracting ?? "Tavuk modeli ve renkleri baştan hazırlanır", GBox, "reextract"),
 		];
 		y = Group(y, data.Length, 60, (i, ry) =>
 		{
@@ -664,10 +664,19 @@ sealed unsafe class MainWindow : WindowBase
 		y = Section(y, "Hakkında");
 		(string Head, string Body)[] blocks =
 		[
-			("Ne yapar", "CS2'deki evcil tavuğunu Windows'ta, oyundaki gerçek modeli ve animasyonlarıyla yaşatır; yemin ne zaman biteceğini takip eder ve bitmeden haber verir."),
-			("Veri nereden geliyor", $"Kümes, Steam hesabınla ayrı bir cihaz olarak (\"{DesktopAccount.DeviceName}\") bağlanır, birkaç saniye \"CS2 oynuyor\" görünür ve CS2'nin oyun sunucusundan envanterindeki tavuğu okur. Takas, satın alma ya da mesaj gibi hiçbir şey yapmaz."),
-			("Hesabın", "Şifren hiç saklanmaz. Oturum anahtarı sadece bu bilgisayarda, Windows'un kendi şifrelemesiyle durur. Tamamen kaldırmak için: Steam → Ayarlar → Güvenlik → Yetkili cihazlar."),
-			("Bağımsız bir uygulama", "Tavuk modelleri ve renkleri senin CS2 kurulumundan çıkarılır; uygulamayla dağıtılmaz. Kümes resmi bir Valve ürünü değildir ve Valve ile bir bağlantısı yoktur."),
+			("Gizlilik",
+				"• Steam şifren sadece Steam'e gönderilir, Kümes kaydetmez.\n" +
+				"• Steam'in verdiği oturum anahtarı bu bilgisayarda, Windows'un şifrelemesiyle durur.\n" +
+				"• Tavuk bilgilerin sadece bu bilgisayarda tutulur, hiçbir sunucuya gönderilmez.\n" +
+				$"• Kümes, Steam'e ayrı bir cihaz olarak (\"{DesktopAccount.DeviceName}\") bağlanır ve birkaç saniye \"CS2 oynuyor\" görünür. Takas, satın alma, mesaj gibi bir şey yapmaz.\n" +
+				"• Erişimi tamamen kaldırmak için: Steam → Ayarlar → Güvenlik → Yetkili cihazlar."),
+			("Bağımsızlık",
+				"Kümes, Valve Corporation ve Steam ile bağlantılı değildir, onlar tarafından onaylanmamıştır. " +
+				"Counter-Strike 2, CS2 ve Steam, Valve Corporation'ın ticari markalarıdır. " +
+				"CS2 dosyaları uygulamayla dağıtılmaz. Bilgisayarındaki CS2'den çıkarılır ya da kendi Steam hesabınla Valve'ın sunucularından indirilir."),
+			("Açık kaynak",
+				"Kaynak kodu: github.com/enes-topcam/kumes-desktop (MIT)\n" +
+				"SteamKit2 (LGPL-2.1) · ValveResourceFormat (MIT) · Silk.NET (MIT) · Vortice (MIT) · QRCoder (MIT)"),
 		];
 		float by = y + 18;
 		var bf = F(13.5f);
@@ -718,13 +727,17 @@ sealed unsafe class MainWindow : WindowBase
 	{
 		var lines = new List<string>();
 		var cur = "";
-		foreach (var word in text.Split(' '))
+		foreach (var para in text.Split('\n')) // paragraflar ayrı satırlarda başlar
 		{
-			var tryLine = cur.Length == 0 ? word : cur + " " + word;
-			if (G.Measure(tryLine, f).X > width && cur.Length > 0) { lines.Add(cur); cur = word; }
-			else cur = tryLine;
+			foreach (var word in para.Split(' '))
+			{
+				var tryLine = cur.Length == 0 ? word : cur + " " + word;
+				if (G.Measure(tryLine, f).X > width && cur.Length > 0) { lines.Add(cur); cur = word; }
+				else cur = tryLine;
+			}
+			if (cur.Length > 0) lines.Add(cur);
+			cur = "";
 		}
-		if (cur.Length > 0) lines.Add(cur);
 		return lines;
 	}
 
