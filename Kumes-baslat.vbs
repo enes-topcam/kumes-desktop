@@ -1,5 +1,4 @@
-' Kümes'i (C# sürümü) başlatır: çift tıkla. Zaten açıksa yeni kopya açılmaz, tavuk görünür hale gelir.
-' Eski Electron sürümü için: Kumes-electron-baslat.vbs
+' Kümes'i başlatır: çift tıkla. Zaten açıksa yeni kopya açılmaz, tavuk görünür hale gelir.
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set sh = CreateObject("WScript.Shell")
 dir = fso.GetParentFolderName(WScript.ScriptFullName)

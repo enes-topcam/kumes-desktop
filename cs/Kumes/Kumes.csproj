@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>Kumes</AssemblyName>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <RootNamespace>Kumes</RootNamespace>
     <!-- Az RAM: tek iş parçacıklı, arka planda çalışmayan GC -->
     <ServerGarbageCollection>false</ServerGarbageCollection>
@@ -31,6 +31,7 @@
     <PackageReference Include="Silk.NET.OpenGL" Version="2.23.0" />
     <PackageReference Include="StbImageSharp" Version="2.30.16" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="11.0.0" />
+    <PackageReference Include="ValveResourceFormat" Version="20.1.7467" />
     <PackageReference Include="Vortice.Direct2D1" Version="3.8.3" />
   </ItemGroup>
 

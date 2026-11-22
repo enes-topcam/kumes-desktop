@@ -647,7 +647,7 @@ sealed unsafe class MainWindow : WindowBase
 			("Şimdi güncelle", model.Fetching ? "Güncelleniyor…" : last is { } t ? $"Son senkronizasyon: {Fmt.When(t)}" : "Henüz güncellenmedi", GRefresh, "refresh"),
 			("Veri klasörünü aç", "%APPDATA%\\KumesCS", GFolder, "openfolder"),
 			("Kayıt dosyasını aç", "kumes.log", GDoc, "openlog"),
-			("CS2 modellerini yeniden çıkar", model.Extracting ?? "Modeller ve renkler senin CS2 kurulumundan çıkarılır", GBox, "reextract"),
+			("CS2 modellerini yeniden çıkar", model.Extracting ?? "Modeller ve renkler CS2'den alınır (kurulu değilse Steam hesabınla indirilir)", GBox, "reextract"),
 		];
 		y = Group(y, data.Length, 60, (i, ry) =>
 		{

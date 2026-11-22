@@ -337,6 +337,7 @@ sealed unsafe class App
 		}).ContinueWith(_ => msg.Post(() =>
 		{
 			fetching = false;
+			if (AssetManager.LoadOwn() == null) StartExtract(); // CS2 yoksa: giriş yapılmış hesapla indir
 			ApplyVisibility();
 			UpdateTray();
 			ScheduleTrim();
@@ -815,31 +816,61 @@ sealed unsafe class App
 	void StartExtract()
 	{
 		if (extractStarted) return;
-		if (AssetManager.FindCli() == null) { Log.Write("Source2Viewer-CLI bulunamadı (tools/vrf), modeller çıkarılamıyor"); return; }
+		if (AssetManager.FindCs2Dir() == null) { StartDownload(); return; } // CS2 kurulu değil: hesapla indir
+		if (AssetManager.FindCli() == null)
+		{
+			// Kaynaktan derlenmiş, tools/vrf konmamış: CS2 kurulu olsa da hesapla indir
+			if (!extractStarted && extracting == null) Log.Write("Source2Viewer-CLI bulunamadı (tools/vrf), tavuk dosyaları Steam hesabıyla indirilecek");
+			StartDownload();
+			return;
+		}
 		extractStarted = true;
 		extracting = "CS2 modelleri hazırlanıyor…";
 		UpdateTray();
 		Log.Write("CS2 modelleri çıkarılıyor");
 		var sw = Stopwatch.StartNew();
 		Task.Run(() => AssetManager.Extract(t => msg.Post(() => { extracting = t; UpdateTray(); })))
-			.ContinueWith(t => msg.Post(() =>
-			{
-				extracting = null;
-				extractStarted = false;
-				if (t.IsCompletedSuccessfully && AssetManager.LoadOwn() is AssetSet own)
-				{
-					Log.Write($"CS2 modelleri çıkarıldı ({sw.Elapsed.TotalSeconds:F0} sn)");
-					assets = own;
-					collection = null; // koleksiyon resimleri yeni modellerle yeniden çizilsin
-					EnsureModel(force: true); // aynı klasöre yeniden çıkarıldı: yol değişmese de dosyalar yeni
-				}
-				else
-				{
-					Log.Write($"CS2 modelleri çıkarılamadı: {t.Exception?.InnerException?.Message}");
-				}
-				UpdateTray();
-				ScheduleTrim();
-			}));
+			.ContinueWith(t => msg.Post(() => ExtractDone(t, sw)));
+	}
+
+	// CS2 kurulu değilse: tavuk dosyaları giriş yapılmış bir Steam hesabıyla Valve'dan indirilir (sadece gerekenler).
+	// Giriş yoksa (sadece "Giriş yapmadan dene") tavuk çizilemez; giriş yapılıp ilk güncelleme bitince başlar.
+	void StartDownload()
+	{
+		if (extractStarted || fetching) return; // güncelleme bitince yeniden denenir
+		if (accounts.FirstOrDefault(x => x.LoggedIn && !x.IsDemo) is not { } a)
+		{
+			if (extracting == null) Log.Write("CS2 kurulu değil: Steam'e giriş yapılınca tavuk dosyaları indirilecek");
+			extracting = "Tavuğun görünmesi için CS2 kurulu olmalı ya da Steam'e giriş yapılmalı";
+			UpdateTray();
+			return;
+		}
+		extractStarted = true;
+		extracting = "CS2 tavuk dosyaları indiriliyor…";
+		UpdateTray();
+		Log.Write("CS2 kurulu değil: tavuk dosyaları Steam hesabıyla indiriliyor");
+		var sw = Stopwatch.StartNew();
+		Task.Run(() => AssetManager.ExtractFromSteam(a.Steam, t => msg.Post(() => { extracting = t; UpdateTray(); }), CancellationToken.None))
+			.ContinueWith(t => msg.Post(() => ExtractDone(t, sw)));
+	}
+
+	void ExtractDone(Task t, Stopwatch sw)
+	{
+		extracting = null;
+		extractStarted = false;
+		if (t.IsCompletedSuccessfully && AssetManager.LoadOwn() is AssetSet own)
+		{
+			Log.Write($"CS2 modelleri hazır ({sw.Elapsed.TotalSeconds:F0} sn)");
+			assets = own;
+			collection = null; // koleksiyon resimleri yeni modellerle yeniden çizilsin
+			EnsureModel(force: true); // aynı klasöre yeniden çıkarıldı: yol değişmese de dosyalar yeni
+		}
+		else
+		{
+			Log.Write($"CS2 modelleri hazırlanamadı: {t.Exception?.InnerException}");
+		}
+		UpdateTray();
+		ScheduleTrim();
 	}
 
 	// Doğru ırk/renk modeli yüklü değilse yükle

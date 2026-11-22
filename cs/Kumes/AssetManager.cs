@@ -172,6 +172,8 @@ static partial class AssetManager
 
 	public static string? FindCs2Dir()
 	{
+		// KUMES_NO_CS2=1: geliştirirken CS2 kurulu değilmiş gibi davran (hesapla indirmeyi denemek için)
+		if (Environment.GetEnvironmentVariable("KUMES_NO_CS2") == "1") return null;
 		var roots = new List<string>();
 		void AddRoot(string? p) { if (!string.IsNullOrEmpty(p)) { p = Path.GetFullPath(p); if (!roots.Contains(p, StringComparer.OrdinalIgnoreCase)) roots.Add(p); } }
 		try { AddRoot(Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam")?.GetValue("SteamPath") as string); } catch { }
